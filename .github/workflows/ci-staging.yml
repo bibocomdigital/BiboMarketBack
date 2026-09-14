@@ -1,10 +1,10 @@
-name: CI pour les pull et push dans iso_prod
+name: CI pour les pull et push dans staging
 
 on:
   push:
-    branches: [ 'iso_prod' ]
+    branches: [ 'staging' ]
   pull_request:
-    branches: [ 'iso_prod' ]
+    branches: [ 'staging' ]
 
 jobs:
   build:
