@@ -1,0 +1,55 @@
+services:
+  backend:
+    build:
+      context: .
+      target: src
+      args:
+        DATABASE_URL: ${DATABASE_URL}
+        DATABASE_CONSOLE_URL: ${DATABASE_CONSOLE_URL}
+    container_name: biboEleaningBack
+    env_file:
+      - .env
+    ports:
+      - '3006:3000'
+      - '5555:5555'
+    volumes:
+      - .:/app
+      # Garde le node_modules du conteneur séparé de celui de l'hôte
+      # (évite que npm ci Docker écrase/corrompe les deps utilisées par l'IDE)
+      - backend_node_modules:/app/node_modules
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - biboEleaning-network
+
+  postgres:
+    image: postgres:17
+    container_name: postgresBibo
+    environment:
+      POSTGRES_DB: biboEleaning
+      POSTGRES_USER: bibouser
+      POSTGRES_PASSWORD: bibopassword
+    ports:
+      - '5434:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - biboEleaning-network
+
+  redis:
+    image: redis:7
+    container_name: redisBibo
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    networks:
+      - biboEleaning-network
+
+volumes:
+  postgres_data:
+  backend_node_modules:
+
+networks:
+  biboEleaning-network:
+    driver: bridge
