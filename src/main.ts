@@ -1,9 +1,10 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { FRONTEND_URL, FRONTEND_URL_ANDROID, FRONTEND_URL_IOS } from '@application/config/env';
+import { FRONTEND_URL, FRONTEND_URL_ANDROID, FRONTEND_URL_IOS, NODE_ENV } from '@application/config/env';
 import cookieParser from 'cookie-parser';
 import { GlobalExceptionFilter } from '@interface/filters/global-exception.filter';
+import { ResponseInterceptor } from '@interface/interceptors/response.interceptor';
 import { PrismaService } from '@infrastructure/prisma/prisma.service';
 
 async function bootstrap() {
@@ -14,14 +15,14 @@ async function bootstrap() {
     FRONTEND_URL_IOS,
   ].filter((origin): origin is string => Boolean(origin));
 
-  // Enable CORS
   app.enableCors({
     origin: (origin, callback) => {
+      // Native mobile / curl / same-origin: no Origin header
       if (!origin) {
         return callback(null, true);
       }
 
-      const isAllowed = allowedOrigins.some((allowed) => {
+      const isAllowedConfigured = allowedOrigins.some((allowed) => {
         try {
           const allowedUrl = new URL(allowed);
           const requestUrl = new URL(origin);
@@ -36,9 +37,24 @@ async function bootstrap() {
         }
       });
 
-      if (isAllowed) {
+      // Flutter web / Vite / Next use random localhost ports in dev
+      let isLocalDevOrigin = false;
+      try {
+        const requestUrl = new URL(origin);
+        const isLocalHost =
+          requestUrl.hostname === 'localhost' ||
+          requestUrl.hostname === '127.0.0.1';
+        isLocalDevOrigin =
+          NODE_ENV !== 'production' && isLocalHost;
+      } catch {
+        isLocalDevOrigin = false;
+      }
+
+      if (isAllowedConfigured || isLocalDevOrigin) {
         callback(null, true);
       } else {
+        console.warn(`CORS blocked origin: ${origin}`);
+        console.warn('allowedOrigins:', allowedOrigins);
         callback(new Error('Origin not allowed'));
       }
     },
@@ -58,6 +74,7 @@ async function bootstrap() {
   prismaService.enableShutdownHooks(app);
 
   app.useGlobalFilters(new GlobalExceptionFilter());
+  app.useGlobalInterceptors(new ResponseInterceptor());
   const config = new DocumentBuilder()
     .setTitle('Bibocom Market API')
     .setDescription('The Bibocom Market API description')

@@ -6,10 +6,9 @@ import {
   Param,
   Post,
   Put,
-  Res,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import type { Response } from 'express';
+import { ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AppException } from '@domain/exceptions/app.exception';
 import { CreateCategorieShopUseCase } from '@application/use-cases/categorie-shop/create-categorie-shop.use-case';
 import { DeleteCategorieShopUseCase } from '@application/use-cases/categorie-shop/delete-categorie-shop.use-case';
 import { GetCategorieShopUseCase } from '@application/use-cases/categorie-shop/get-categorie-shop.use-case';
@@ -33,16 +32,31 @@ export class CategorieShopController {
 
   @Post()
   @ApiOperation({ summary: 'Créer une catégorie de boutique' })
-  async create(
-    @Body() body: CreateCategorieShopHttpDto,
-    @Res() res: Response,
-  ) {
-    try {
-      const data = await this.createCategorieShop.execute(body);
-      return res.json(data);
-    } catch (error) {
-      return res.status(400).json({ error });
+  @ApiConsumes('application/json')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string', example: 'Alimentation' },
+        description: {
+          type: 'string',
+          example: 'Produits alimentaires et boissons',
+          nullable: true,
+        },
+      },
+    },
+  })
+  create(@Body() body: CreateCategorieShopHttpDto) {
+    const name = body?.name?.trim();
+    if (!name) {
+      throw AppException.validation('Le champ name est requis');
     }
+
+    return this.createCategorieShop.execute({
+      name,
+      description: body.description,
+    });
   }
 
   @Get()

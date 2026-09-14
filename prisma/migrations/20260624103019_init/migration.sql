@@ -1,40 +1,96 @@
--- CreateEnum
-CREATE TYPE "UserRole" AS ENUM ('CLIENT', 'COMPANY_OWNER', 'ADMIN');
+-- CreateSchema
+CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE');
+CREATE TYPE "UserRole" AS ENUM ('MERCHANT', 'CLIENT', 'SUPPLIER', 'ADMIN');
 
 -- CreateEnum
-CREATE TYPE "CompanyStatus" AS ENUM ('PENDING', 'ACTIVE', 'SUSPENDED');
+CREATE TYPE "OnboardingStep" AS ENUM ('email_verification', 'personal_info', 'contact_info', 'address_info', 'profile_photo', 'completed');
 
 -- CreateEnum
-CREATE TYPE "ReviewType" AS ENUM ('AVIS', 'RECLAMATION');
+CREATE TYPE "Gender" AS ENUM ('MALE', 'FEMALE', 'OTHER');
 
 -- CreateEnum
-CREATE TYPE "ReviewStatus" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'ARCHIVED');
+CREATE TYPE "ProductStatus" AS ENUM ('DRAFT', 'PUBLISHED');
 
 -- CreateEnum
-CREATE TYPE "SenderType" AS ENUM ('CLIENT', 'COMPANY', 'ADMIN');
+CREATE TYPE "OrderStatus" AS ENUM ('PENDING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELED');
 
 -- CreateEnum
-CREATE TYPE "ModuleType" AS ENUM ('BASIC', 'PREMIUM', 'ENTERPRISE');
+CREATE TYPE "PaymentMethod" AS ENUM ('CASH_ON_DELIVERY', 'MOBILE_MONEY');
 
 -- CreateEnum
-CREATE TYPE "SubscriptionStatus" AS ENUM ('ACTIVE', 'EXPIRED', 'CANCELLED', 'PENDING');
+CREATE TYPE "NotificationType" AS ENUM ('ORDER', 'MESSAGE', 'FOLLOW', 'PRODUCT', 'SHOP', 'SERVICE', 'PROMOTION', 'SYSTEM', 'VERIFICATION', 'PRODUCT_LIKE');
 
 -- CreateEnum
-CREATE TYPE "PaymentMethod" AS ENUM ('WAVE', 'ORANGE_MONEY', 'FREE_MONEY', 'CARD');
+CREATE TYPE "LikeType" AS ENUM ('LIKE', 'DISLIKE');
 
 -- CreateEnum
-CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'SUCCESS', 'FAILED');
+CREATE TYPE "ContactStatus" AS ENUM ('UNREAD', 'RESPONDED', 'CLOSED');
+
+-- CreateTable
+CREATE TABLE "MerchantContact" (
+    "id" SERIAL NOT NULL,
+    "shopId" INTEGER NOT NULL,
+    "merchantId" INTEGER NOT NULL,
+    "subject" TEXT NOT NULL,
+    "senderEmail" TEXT NOT NULL,
+    "message" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'UNREAD',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "MerchantContact_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "MerchantContactResponse" (
+    "id" SERIAL NOT NULL,
+    "merchantContactId" INTEGER NOT NULL,
+    "merchantId" INTEGER NOT NULL,
+    "response" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "MerchantContactResponse_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "User" (
-    "id" TEXT NOT NULL,
-    "phone" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "email" TEXT NOT NULL,
     "password" TEXT NOT NULL,
-    "role" "UserRole" NOT NULL,
-    "isPhoneVerified" BOOLEAN NOT NULL DEFAULT false,
+    "role" "UserRole" NOT NULL DEFAULT 'CLIENT',
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
+    "verificationCode" TEXT,
+    "tokenExpiry" TIMESTAMP(3),
+    "resetCode" TEXT,
+    "googleId" TEXT,
+    "onboardingStep" "OnboardingStep" NOT NULL DEFAULT 'email_verification',
+    "profileCompletion" INTEGER NOT NULL DEFAULT 20,
+    "isProfileCompleted" BOOLEAN NOT NULL DEFAULT false,
+    "firstName" TEXT,
+    "lastName" TEXT,
+    "gender" "Gender",
+    "dateOfBirth" TIMESTAMP(3),
+    "phoneNumber" TEXT,
+    "whatsappNumber" TEXT,
+    "country" TEXT,
+    "city" TEXT,
+    "department" TEXT,
+    "commune" TEXT,
+    "address" TEXT,
+    "photo" TEXT,
+    "bio" TEXT,
+    "language" TEXT NOT NULL DEFAULT 'fr',
+    "currency" TEXT NOT NULL DEFAULT 'CFA',
+    "timezone" TEXT NOT NULL DEFAULT 'Africa/Dakar',
+    "emailNotifications" BOOLEAN NOT NULL DEFAULT true,
+    "smsNotifications" BOOLEAN NOT NULL DEFAULT false,
+    "pushNotifications" BOOLEAN NOT NULL DEFAULT true,
+    "marketingEmails" BOOLEAN NOT NULL DEFAULT false,
+    "isOnline" BOOLEAN NOT NULL DEFAULT false,
+    "lastLogin" TIMESTAMP(3),
+    "lastActive" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -42,254 +98,382 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
-CREATE TABLE "Profile" (
-    "id" TEXT NOT NULL,
-    "firstName" TEXT NOT NULL,
-    "lastName" TEXT NOT NULL,
-    "gender" "Gender" NOT NULL,
-    "city" TEXT,
-    "userId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Profile_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Company" (
-    "id" TEXT NOT NULL,
+CREATE TABLE "CategorieShop" (
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
-    "tradeRegisterNumber" TEXT NOT NULL,
-    "city" TEXT NOT NULL,
-    "sector" TEXT NOT NULL,
-    "address" TEXT NOT NULL,
-    "directorPhone" TEXT NOT NULL,
-    "qrCode" TEXT,
-    "qrCodeGeneratedAt" TIMESTAMP(3),
-    "status" "CompanyStatus" NOT NULL DEFAULT 'PENDING',
-    "ownerId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "description" TEXT,
 
-    CONSTRAINT "Company_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "CategorieShop_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Review" (
-    "id" TEXT NOT NULL,
-    "rating" INTEGER,
-    "messageText" TEXT,
-    "audioUrl" TEXT,
-    "type" "ReviewType" NOT NULL,
-    "status" "ReviewStatus" NOT NULL DEFAULT 'NEW',
-    "companyId" TEXT NOT NULL,
-    "clientId" TEXT NOT NULL,
+CREATE TABLE "Shop" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "logo" TEXT,
+    "phoneNumber" TEXT NOT NULL,
+    "address" TEXT,
+    "userId" INTEGER NOT NULL,
+    "verifiedBadge" BOOLEAN NOT NULL DEFAULT false,
+    "status" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "categorieShopId" INTEGER NOT NULL,
+
+    CONSTRAINT "Shop_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CategorieProd" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "categorieShopId" INTEGER NOT NULL,
+
+    CONSTRAINT "CategorieProd_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Product" (
+    "id" SERIAL NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT,
+    "price" DOUBLE PRECISION NOT NULL,
+    "stock" INTEGER NOT NULL,
+    "videoUrl" TEXT,
+    "status" "ProductStatus" NOT NULL DEFAULT 'DRAFT',
+    "likesCount" INTEGER NOT NULL DEFAULT 0,
+    "commentsCount" INTEGER NOT NULL DEFAULT 0,
+    "sharesCount" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "shopId" INTEGER NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "categorieProdId" INTEGER NOT NULL,
+
+    CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProductComment" (
+    "id" SERIAL NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "comment" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Review_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "ProductComment_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "CommentReply" (
+    "id" SERIAL NOT NULL,
+    "commentId" INTEGER NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "reply" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "CommentReply_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProductLike" (
+    "id" SERIAL NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "type" "LikeType" NOT NULL DEFAULT 'LIKE',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ProductLike_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProductShare" (
+    "id" SERIAL NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "sharedTo" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ProductShare_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ProductImage" (
+    "id" SERIAL NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "imageUrl" VARCHAR(500) NOT NULL,
+
+    CONSTRAINT "ProductImage_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Order" (
+    "id" SERIAL NOT NULL,
+    "clientId" INTEGER NOT NULL,
+    "totalAmount" DOUBLE PRECISION NOT NULL,
+    "status" "OrderStatus" NOT NULL,
+    "paymentMethod" "PaymentMethod" NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "Order_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "MerchantFeedback" (
+    "id" SERIAL NOT NULL,
+    "orderId" INTEGER NOT NULL,
+    "clientId" INTEGER NOT NULL,
+    "merchantId" INTEGER NOT NULL,
+    "shopId" INTEGER NOT NULL,
+    "rating" INTEGER NOT NULL,
+    "comment" TEXT,
+    "contactSuccessful" BOOLEAN NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "MerchantFeedback_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "OrderItem" (
+    "id" SERIAL NOT NULL,
+    "orderId" INTEGER NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "quantity" INTEGER NOT NULL,
+    "price" DOUBLE PRECISION NOT NULL,
+
+    CONSTRAINT "OrderItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "Message" (
-    "id" TEXT NOT NULL,
-    "contentText" TEXT,
-    "audioUrl" TEXT,
-    "senderType" "SenderType" NOT NULL,
-    "reviewId" TEXT NOT NULL,
-    "senderId" TEXT NOT NULL,
+    "id" SERIAL NOT NULL,
+    "senderId" INTEGER NOT NULL,
+    "receiverId" INTEGER NOT NULL,
+    "content" TEXT NOT NULL,
+    "mediaUrl" TEXT,
+    "mediaType" TEXT,
+    "isRead" BOOLEAN NOT NULL DEFAULT false,
+    "deletedForSender" BOOLEAN NOT NULL DEFAULT false,
+    "deletedForReceiver" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Message_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Feature" (
-    "id" TEXT NOT NULL,
-    "code" TEXT NOT NULL,
+CREATE TABLE "Subscription" (
+    "id" SERIAL NOT NULL,
+    "followerId" INTEGER NOT NULL,
+    "followingId" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Subscription_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "Service" (
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT,
-    "isFree" BOOLEAN NOT NULL DEFAULT false,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Feature_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "SubscriptionModule" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "type" "ModuleType" NOT NULL,
-    "description" TEXT,
-    "price" DECIMAL(10,2) NOT NULL,
-    "durationMonths" INTEGER NOT NULL,
+    "price" DOUBLE PRECISION NOT NULL,
+    "providerId" INTEGER NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "SubscriptionModule_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Service_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "ModuleFeature" (
-    "moduleId" TEXT NOT NULL,
-    "featureId" TEXT NOT NULL,
-
-    CONSTRAINT "ModuleFeature_pkey" PRIMARY KEY ("moduleId","featureId")
-);
-
--- CreateTable
-CREATE TABLE "CompanySubscription" (
-    "id" TEXT NOT NULL,
-    "companyId" TEXT NOT NULL,
-    "moduleId" TEXT NOT NULL,
-    "status" "SubscriptionStatus" NOT NULL,
-    "startDate" TIMESTAMP(3) NOT NULL,
-    "endDate" TIMESTAMP(3) NOT NULL,
+CREATE TABLE "Notification" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "type" "NotificationType" NOT NULL,
+    "message" TEXT NOT NULL,
+    "isRead" BOOLEAN NOT NULL DEFAULT false,
+    "actionUrl" TEXT,
+    "resourceId" INTEGER,
+    "resourceType" TEXT,
+    "priority" INTEGER NOT NULL DEFAULT 0,
+    "expiresAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "CompanySubscription_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Notification_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Payment" (
-    "id" TEXT NOT NULL,
-    "amount" DECIMAL(10,2) NOT NULL,
-    "method" "PaymentMethod" NOT NULL,
-    "status" "PaymentStatus" NOT NULL,
-    "transactionReference" TEXT NOT NULL,
-    "subscriptionId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Payment_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Staff" (
-    "id" TEXT NOT NULL,
-    "firstName" TEXT NOT NULL,
-    "lastName" TEXT NOT NULL,
-    "position" TEXT NOT NULL,
-    "companyId" TEXT NOT NULL,
+CREATE TABLE "Cart" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Staff_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Cart_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "StaffPerformance" (
-    "id" TEXT NOT NULL,
-    "averageRating" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "totalReviews" INTEGER NOT NULL DEFAULT 0,
-    "complaintsCount" INTEGER NOT NULL DEFAULT 0,
-    "staffId" TEXT NOT NULL,
+CREATE TABLE "CartItem" (
+    "id" SERIAL NOT NULL,
+    "cartId" INTEGER NOT NULL,
+    "productId" INTEGER NOT NULL,
+    "quantity" INTEGER NOT NULL DEFAULT 1,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "StaffPerformance_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "CartItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "OtpCode" (
-    "id" TEXT NOT NULL,
-    "phone" TEXT NOT NULL,
-    "code" TEXT NOT NULL,
-    "expiresAt" TIMESTAMP(3) NOT NULL,
-    "isUsed" BOOLEAN NOT NULL DEFAULT false,
+CREATE TABLE "Status" (
+    "id" SERIAL NOT NULL,
+    "userId" INTEGER NOT NULL,
+    "content" TEXT NOT NULL,
+    "imageUrl" TEXT,
+    "videoUrl" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "OtpCode_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "Status_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "User_phone_key" ON "User"("phone");
+CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
-CREATE INDEX "User_phone_idx" ON "User"("phone");
+CREATE UNIQUE INDEX "User_googleId_key" ON "User"("googleId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Profile_userId_key" ON "Profile"("userId");
+CREATE UNIQUE INDEX "User_phoneNumber_key" ON "User"("phoneNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Company_tradeRegisterNumber_key" ON "Company"("tradeRegisterNumber");
+CREATE UNIQUE INDEX "CategorieShop_name_key" ON "CategorieShop"("name");
 
 -- CreateIndex
-CREATE INDEX "Company_ownerId_idx" ON "Company"("ownerId");
+CREATE UNIQUE INDEX "Shop_phoneNumber_key" ON "Shop"("phoneNumber");
 
 -- CreateIndex
-CREATE INDEX "Company_status_idx" ON "Company"("status");
+CREATE UNIQUE INDEX "Shop_userId_key" ON "Shop"("userId");
 
 -- CreateIndex
-CREATE INDEX "Review_companyId_idx" ON "Review"("companyId");
+CREATE UNIQUE INDEX "CategorieProd_name_key" ON "CategorieProd"("name");
 
 -- CreateIndex
-CREATE INDEX "Review_clientId_idx" ON "Review"("clientId");
+CREATE UNIQUE INDEX "ProductLike_productId_userId_key" ON "ProductLike"("productId", "userId");
 
 -- CreateIndex
-CREATE INDEX "Review_status_idx" ON "Review"("status");
+CREATE UNIQUE INDEX "Cart_userId_key" ON "Cart"("userId");
 
 -- CreateIndex
-CREATE INDEX "Message_reviewId_idx" ON "Message"("reviewId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Feature_code_key" ON "Feature"("code");
-
--- CreateIndex
-CREATE UNIQUE INDEX "SubscriptionModule_type_key" ON "SubscriptionModule"("type");
-
--- CreateIndex
-CREATE INDEX "CompanySubscription_companyId_idx" ON "CompanySubscription"("companyId");
-
--- CreateIndex
-CREATE INDEX "CompanySubscription_status_idx" ON "CompanySubscription"("status");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Payment_transactionReference_key" ON "Payment"("transactionReference");
-
--- CreateIndex
-CREATE INDEX "Payment_transactionReference_idx" ON "Payment"("transactionReference");
-
--- CreateIndex
-CREATE UNIQUE INDEX "StaffPerformance_staffId_key" ON "StaffPerformance"("staffId");
-
--- CreateIndex
-CREATE INDEX "OtpCode_phone_idx" ON "OtpCode"("phone");
+CREATE UNIQUE INDEX "CartItem_cartId_productId_key" ON "CartItem"("cartId", "productId");
 
 -- AddForeignKey
-ALTER TABLE "Profile" ADD CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "MerchantContact" ADD CONSTRAINT "MerchantContact_merchant_receiver_fkey" FOREIGN KEY ("merchantId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Company" ADD CONSTRAINT "Company_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "MerchantContact" ADD CONSTRAINT "MerchantContact_shop_fkey" FOREIGN KEY ("shopId") REFERENCES "Shop"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Review" ADD CONSTRAINT "Review_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "MerchantContactResponse" ADD CONSTRAINT "MerchantContactResponse_merchantContact_fkey" FOREIGN KEY ("merchantContactId") REFERENCES "MerchantContact"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Review" ADD CONSTRAINT "Review_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "MerchantContactResponse" ADD CONSTRAINT "MerchantContactResponse_merchant_fkey" FOREIGN KEY ("merchantId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Message" ADD CONSTRAINT "Message_reviewId_fkey" FOREIGN KEY ("reviewId") REFERENCES "Review"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Shop" ADD CONSTRAINT "Shop_categorieShopId_fkey" FOREIGN KEY ("categorieShopId") REFERENCES "CategorieShop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Shop" ADD CONSTRAINT "Shop_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CategorieProd" ADD CONSTRAINT "CategorieProd_categorieShopId_fkey" FOREIGN KEY ("categorieShopId") REFERENCES "CategorieShop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Product" ADD CONSTRAINT "Product_shopId_fkey" FOREIGN KEY ("shopId") REFERENCES "Shop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Product" ADD CONSTRAINT "Product_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Product" ADD CONSTRAINT "Product_categorieProdId_fkey" FOREIGN KEY ("categorieProdId") REFERENCES "CategorieProd"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductComment" ADD CONSTRAINT "ProductComment_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductComment" ADD CONSTRAINT "ProductComment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CommentReply" ADD CONSTRAINT "CommentReply_commentId_fkey" FOREIGN KEY ("commentId") REFERENCES "ProductComment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "CommentReply" ADD CONSTRAINT "CommentReply_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductLike" ADD CONSTRAINT "ProductLike_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductLike" ADD CONSTRAINT "ProductLike_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductShare" ADD CONSTRAINT "ProductShare_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductShare" ADD CONSTRAINT "ProductShare_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ProductImage" ADD CONSTRAINT "ProductImage_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Order" ADD CONSTRAINT "Order_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MerchantFeedback" ADD CONSTRAINT "MerchantFeedback_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MerchantFeedback" ADD CONSTRAINT "MerchantFeedback_merchantId_fkey" FOREIGN KEY ("merchantId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MerchantFeedback" ADD CONSTRAINT "MerchantFeedback_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MerchantFeedback" ADD CONSTRAINT "MerchantFeedback_shopId_fkey" FOREIGN KEY ("shopId") REFERENCES "Shop"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Message" ADD CONSTRAINT "Message_receiverId_fkey" FOREIGN KEY ("receiverId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Message" ADD CONSTRAINT "Message_senderId_fkey" FOREIGN KEY ("senderId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ModuleFeature" ADD CONSTRAINT "ModuleFeature_moduleId_fkey" FOREIGN KEY ("moduleId") REFERENCES "SubscriptionModule"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_followerId_fkey" FOREIGN KEY ("followerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "ModuleFeature" ADD CONSTRAINT "ModuleFeature_featureId_fkey" FOREIGN KEY ("featureId") REFERENCES "Feature"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Subscription" ADD CONSTRAINT "Subscription_followingId_fkey" FOREIGN KEY ("followingId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CompanySubscription" ADD CONSTRAINT "CompanySubscription_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Service" ADD CONSTRAINT "Service_providerId_fkey" FOREIGN KEY ("providerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "CompanySubscription" ADD CONSTRAINT "CompanySubscription_moduleId_fkey" FOREIGN KEY ("moduleId") REFERENCES "SubscriptionModule"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "CompanySubscription"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Cart" ADD CONSTRAINT "Cart_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Staff" ADD CONSTRAINT "Staff_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_cartId_fkey" FOREIGN KEY ("cartId") REFERENCES "Cart"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StaffPerformance" ADD CONSTRAINT "StaffPerformance_staffId_fkey" FOREIGN KEY ("staffId") REFERENCES "Staff"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "CartItem" ADD CONSTRAINT "CartItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Status" ADD CONSTRAINT "Status_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+

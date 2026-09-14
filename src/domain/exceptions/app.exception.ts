@@ -15,6 +15,7 @@ interface ErrorResponse {
   error: {
     code: ErrorCode;
     message: string;
+    statusCode: number;
     details?: unknown;
     timestamp: string;
     path?: string;
@@ -138,6 +139,27 @@ export class AppException extends Error {
       ErrorCode.CONFLICTING_OPERATION,
     ];
 
+    const notFoundErrors = [
+      ErrorCode.CATEGORIE_SHOP_NOT_FOUND,
+      ErrorCode.CATEGORIE_PROD_NOT_FOUND,
+      ErrorCode.RESOURCE_NOT_FOUND,
+      ErrorCode.COURSE_NOT_FOUND,
+      ErrorCode.LESSON_NOT_FOUND,
+      ErrorCode.MODULE_NOT_FOUND,
+      ErrorCode.ENROLLMENT_NOT_FOUND,
+      ErrorCode.PAYMENT_NOT_FOUND,
+      ErrorCode.QUIZ_NOT_FOUND,
+      ErrorCode.QUESTION_NOT_FOUND,
+      ErrorCode.FILE_NOT_FOUND,
+      ErrorCode.CERTIFICATE_NOT_FOUND,
+    ];
+
+    const conflictErrors = [
+      ErrorCode.CATEGORIE_SHOP_ALREADY_EXISTS,
+      ErrorCode.CATEGORIE_PROD_ALREADY_EXISTS,
+      ErrorCode.CONFLICTING_OPERATION,
+    ];
+
     // Check errors in order of priority
     if (authErrors.includes(errorCode)) {
       return HttpStatusCode.UNAUTHORIZED;
@@ -145,6 +167,14 @@ export class AppException extends Error {
 
     if (authorisationError.includes(errorCode)) {
       return HttpStatusCode.FORBIDDEN;
+    }
+
+    if (notFoundErrors.includes(errorCode)) {
+      return HttpStatusCode.NOT_FOUND;
+    }
+
+    if (conflictErrors.includes(errorCode)) {
+      return HttpStatusCode.CONFLICT;
     }
 
     if (
@@ -177,6 +207,7 @@ export class AppException extends Error {
       error: {
         code: this.errorCode,
         message: this.message,
+        statusCode: this.statusCode,
         details: this.details,
         timestamp: this.timestamp.toISOString(),
         path: this.path,

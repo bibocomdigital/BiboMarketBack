@@ -3,24 +3,36 @@ import {
   ExceptionFilter,
   ArgumentsHost,
 } from '@nestjs/common';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { ExpressContractException } from '@domain/exceptions/express-contract.exception';
+import { isApiEnvelope } from '@application/dto/response/api.response';
+import { buildApiErrorResponse } from './error-response';
 
 @Catch(ExpressContractException)
 export class ExpressContractFilter implements ExceptionFilter {
   catch(exception: ExpressContractException, host: ArgumentsHost): void {
-    const response = host.switchToHttp().getResponse<Response>();
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
-    if (exception.body) {
+    if (exception.body && isApiEnvelope(exception.body)) {
       response.status(exception.statusCode).json(exception.body);
       return;
     }
 
-    response.status(exception.statusCode).json({
-      status: 'error',
-      ...(exception.code ? { code: exception.code } : {}),
-      message: exception.message,
-      ...exception.extra,
+    const rawMessage =
+      exception.body && typeof exception.body.message === 'string'
+        ? exception.body.message
+        : exception.message;
+
+    const { statusCode, body } = buildApiErrorResponse({
+      statusCode: exception.statusCode,
+      code: exception.code ?? exception.body?.code,
+      message: rawMessage,
+      details: exception.body ?? exception.extra,
+      path: request.url,
     });
+
+    response.status(statusCode).json(body);
   }
 }
