@@ -155,3 +155,24 @@ export class UsersMerchantGuard implements CanActivate {
     return true;
   }
 }
+
+@Injectable()
+export class UsersAdminGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<Request>();
+
+    if (!request.user) {
+      throw ExpressContractException.raw(401, {
+        message: 'Utilisateur non authentifié',
+      });
+    }
+
+    if (request.user.role !== 'ADMIN') {
+      throw ExpressContractException.raw(403, {
+        message: 'Accès réservé aux administrateurs',
+      });
+    }
+
+    return true;
+  }
+}

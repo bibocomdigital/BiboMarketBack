@@ -16,6 +16,7 @@ import { SubscriptionModule } from './interface/modules/subscription.module';
 import { NotificationModule } from './interface/modules/notification.module';
 import { MessageModule } from './interface/modules/message.module';
 import { RealtimeModule } from './interface/modules/realtime.module';
+import { AdminModule } from './interface/modules/admin.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { RealtimeModule } from './interface/modules/realtime.module';
     CommentLikeModule,
     NotificationModule,
     MessageModule,
+    AdminModule,
   ],
   controllers: [AppController],
   providers: [AppService],
