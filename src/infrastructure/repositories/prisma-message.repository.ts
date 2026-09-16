@@ -154,11 +154,11 @@ export class PrismaMessageRepository implements MessageRepository {
     return this.prisma.message.findMany({
       where: {
         OR: [{ senderId: userId }, { receiverId: userId }],
-        content: { contains: query },
+        content: { contains: query, mode: 'insensitive' },
       },
       include: {
-        sender: senderPreview,
-        receiver: senderPreview,
+        sender: conversationUserPreview,
+        receiver: conversationUserPreview,
       },
       orderBy: { createdAt: 'desc' },
     });

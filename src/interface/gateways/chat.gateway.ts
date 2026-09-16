@@ -37,11 +37,12 @@ function rawUserId(token: string): number | undefined {
     }
     const decoded = JSON.parse(
       Buffer.from(payload, 'base64url').toString('utf8'),
-    ) as { userId?: number | string };
-    if (decoded.userId === undefined || decoded.userId === null) {
+    ) as { userId?: number | string; id?: number | string };
+    const raw = decoded.userId ?? decoded.id;
+    if (raw === undefined || raw === null) {
       return undefined;
     }
-    return Number(decoded.userId);
+    return Number(raw);
   } catch {
     return undefined;
   }
@@ -114,14 +115,27 @@ export class ChatGateway
 
   handleConnection(socket: Socket): void {
     const userId = socketUserId(socket);
-    this.realtime.setConnected(userId, socket.id);
-    void socket.join(`user_${userId}`);
-    this.realtime.broadcast('user_status', { userId, status: 'online' });
+    void this.registerConnection(socket, userId);
   }
 
   handleDisconnect(socket: Socket): void {
     const userId = socketUserId(socket);
-    this.realtime.removeConnected(userId);
+    void this.unregisterConnection(socket, userId);
+  }
+
+  private async registerConnection(socket: Socket, userId: number): Promise<void> {
+    await this.realtime.setConnected(userId, socket.id);
+    void socket.join(`user_${userId}`);
+    this.realtime.broadcast('user_status', { userId, status: 'online' });
+    socket.emit('online_users', {
+      userIds: await this.realtime.connectedUserIds(),
+    });
+  }
+
+  private async unregisterConnection(socket: Socket, userId: number): Promise<void> {
+    const current = await this.realtime.getSocketId(userId);
+    if (current && current !== socket.id) return;
+    await this.realtime.removeConnected(userId, socket.id);
     this.realtime.broadcast('user_status', { userId, status: 'offline' });
   }
 
@@ -137,7 +151,7 @@ export class ChatGateway
         data.content,
       );
 
-      const receiverSocketId = this.realtime.getSocketId(
+      const receiverSocketId = await this.realtime.getSocketId(
         parseInt(String(data.receiverId), 10),
       );
       if (receiverSocketId) {
@@ -154,11 +168,11 @@ export class ChatGateway
   }
 
   @SubscribeMessage('typing')
-  handleTyping(
+  async handleTyping(
     @ConnectedSocket() socket: Socket,
     @MessageBody() data: { receiverId?: unknown },
   ) {
-    const receiverSocketId = this.realtime.getSocketId(
+    const receiverSocketId = await this.realtime.getSocketId(
       parseInt(String(data.receiverId), 10),
     );
     if (receiverSocketId) {
@@ -170,11 +184,11 @@ export class ChatGateway
   }
 
   @SubscribeMessage('stop_typing')
-  handleStopTyping(
+  async handleStopTyping(
     @ConnectedSocket() socket: Socket,
     @MessageBody() data: { receiverId?: unknown },
   ) {
-    const receiverSocketId = this.realtime.getSocketId(
+    const receiverSocketId = await this.realtime.getSocketId(
       parseInt(String(data.receiverId), 10),
     );
     if (receiverSocketId) {
@@ -199,7 +213,7 @@ export class ChatGateway
         return;
       }
 
-      const senderSocketId = this.realtime.getSocketId(result.senderId);
+      const senderSocketId = await this.realtime.getSocketId(result.senderId);
       if (senderSocketId) {
         this.server.to(senderSocketId).emit('message_read', {
           messageId: result.updatedMessage.id,

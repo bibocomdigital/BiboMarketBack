@@ -8,11 +8,13 @@ import {
 } from '@application/use-cases/socket/socket.use-case';
 import { PrismaUserRepository } from '@infrastructure/repositories/prisma-user.repository';
 import { PrismaMessageRepository } from '@infrastructure/repositories/prisma-message.repository';
+import { RedisModule } from '@infrastructure/redis/redis.module';
 import { SocketRealtimeService } from '@infrastructure/realtime/socket-realtime.service';
 import { ChatGateway } from '@interface/gateways/chat.gateway';
 
 @Global()
 @Module({
+  imports: [RedisModule],
   providers: [
     SocketRealtimeService,
     { provide: REALTIME_GATEWAY, useExisting: SocketRealtimeService },

@@ -33,6 +33,6 @@ export class PrismaNotificationService implements NotificationServicePort {
       },
     });
 
-    this.realtime?.emitToUser(input.userId, 'new_notification', notification);
+    await this.realtime?.emitToUser(input.userId, 'new_notification', notification);
   }
 }
