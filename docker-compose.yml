@@ -11,8 +11,8 @@ services:
       - .env
     environment:
       PORT: ${PORT:-3000}
-      DATABASE_URL: postgresql://bibouser:bibopassword@postgres:5432/biboMarket
-      DIRECT_URL: postgresql://bibouser:bibopassword@postgres:5432/biboMarket
+      DATABASE_URL: postgres://2a6ed921d60c57541d37ac5e8ad2d40fc0bfc2474e248282981a667a12d6ab76:sk_BHMOb4yaEYDBhvuIXFiW3@db.prisma.io:5432/postgres?sslmode=require
+      DIRECT_URL: postgres://2a6ed921d60c57541d37ac5e8ad2d40fc0bfc2474e248282981a667a12d6ab76:sk_BHMOb4yaEYDBhvuIXFiW3@db.prisma.io:5432/postgres?sslmode=require
     ports:
       - '3007:3000'
       - '5556:5555'

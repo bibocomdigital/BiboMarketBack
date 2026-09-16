@@ -36,6 +36,26 @@ describe('GetUserNotificationsUseCase', () => {
 
     expect(result).toEqual([sample]);
   });
+
+  it('exclut les notifications de chat P2P', async () => {
+    const result = await new GetUserNotificationsUseCase(
+      notificationsRepo({
+        findByUserId: jest.fn().mockResolvedValue([
+          sample,
+          {
+            id: 9,
+            userId: 8,
+            type: 'MESSAGE',
+            resourceType: 'Message',
+            message: 'Nouveau message de Awa Diop',
+            isRead: false,
+          },
+        ]),
+      }),
+    ).execute(8);
+
+    expect(result).toEqual([sample]);
+  });
 });
 
 describe('MarkNotificationAsReadUseCase', () => {

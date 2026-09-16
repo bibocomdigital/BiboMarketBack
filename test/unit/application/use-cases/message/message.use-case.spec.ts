@@ -1,6 +1,5 @@
 import type { MessageRepository } from '@domain/repositories/message.repository';
 import type { FileStoragePort } from '@application/ports/output/file-storage.port';
-import type { NotificationServicePort } from '@application/ports/output/notification.port';
 import {
   DeleteMessageUseCase,
   GetConversationsUseCase,
@@ -64,10 +63,6 @@ const fileStorage: FileStoragePort = {
   deleteMessageMedia: jest.fn(),
 };
 
-function notifications(): NotificationServicePort {
-  return { create: jest.fn() };
-}
-
 describe('getMediaType', () => {
   it('détecte l’audio m4a', () => {
     expect(
@@ -87,7 +82,6 @@ describe('SendMessageUseCase', () => {
       new SendMessageUseCase(
         messagesRepo(),
         fileStorage,
-        notifications(),
       ).execute(8, { firstName: 'Awa', lastName: 'Diop' }, {}),
     ).rejects.toMatchObject({
       statusCode: 400,
@@ -100,7 +94,6 @@ describe('SendMessageUseCase', () => {
       new SendMessageUseCase(
         messagesRepo({ findUserById: jest.fn().mockResolvedValue({ id: 8 }) }),
         fileStorage,
-        notifications(),
       ).execute(8, { firstName: 'Awa', lastName: 'Diop' }, {
         receiverId: 8,
         content: 'Hi',
@@ -114,13 +107,11 @@ describe('SendMessageUseCase', () => {
     });
   });
 
-  it('envoie un message et notifie', async () => {
+  it('envoie un message sans créer de notification cloche', async () => {
     const messages = messagesRepo();
-    const notify = notifications();
     const result = await new SendMessageUseCase(
       messages,
       fileStorage,
-      notify,
     ).execute(
       8,
       { firstName: 'Awa', lastName: 'Diop' },
@@ -131,9 +122,7 @@ describe('SendMessageUseCase', () => {
       success: true,
       message: 'Message envoyé avec succès',
     });
-    expect(notify.create).toHaveBeenCalledWith(
-      expect.objectContaining({ type: 'MESSAGE', priority: 2 }),
-    );
+    expect(messages.create).toHaveBeenCalled();
   });
 });
 

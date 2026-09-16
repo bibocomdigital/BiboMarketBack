@@ -10,10 +10,6 @@ import {
   type FileStoragePort,
 } from '@application/ports/output/file-storage.port';
 import {
-  NOTIFICATION_SERVICE,
-  type NotificationServicePort,
-} from '@application/ports/output/notification.port';
-import {
   REALTIME_GATEWAY,
   type RealtimePort,
 } from '@application/ports/output/realtime.port';
@@ -73,8 +69,6 @@ export class SendMessageUseCase {
   constructor(
     @Inject(MESSAGE_REPOSITORY) private readonly messages: MessageRepository,
     @Inject(FILE_STORAGE) private readonly fileStorage: FileStoragePort,
-    @Inject(NOTIFICATION_SERVICE)
-    private readonly notifications: NotificationServicePort,
     @Optional()
     @Inject(REALTIME_GATEWAY)
     private readonly realtime?: RealtimePort,
@@ -140,20 +134,6 @@ export class SendMessageUseCase {
         mediaType,
         isRead: false,
       });
-
-      try {
-        await this.notifications.create({
-          userId: parsedReceiverId,
-          type: 'MESSAGE',
-          message: `Nouveau message de ${sender.firstName} ${sender.lastName}`,
-          resourceId: message.id,
-          resourceType: 'Message',
-          actionUrl: `/messages/${senderId}`,
-          priority: 2,
-        });
-      } catch {
-        // On continue même si la notification échoue
-      }
 
       this.realtime?.emitToUserRoom(parsedReceiverId, 'new_message', {
         message,

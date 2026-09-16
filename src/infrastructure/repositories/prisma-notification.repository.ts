@@ -8,7 +8,16 @@ export class PrismaNotificationRepository implements NotificationRepository {
 
   findByUserId(userId: number) {
     return this.prisma.notification.findMany({
-      where: { userId },
+      where: {
+        userId,
+        NOT: {
+          AND: [
+            { type: 'MESSAGE' },
+            { resourceType: 'Message' },
+            { message: { startsWith: 'Nouveau message' } },
+          ],
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }

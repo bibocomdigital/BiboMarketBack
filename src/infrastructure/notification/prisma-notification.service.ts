@@ -9,6 +9,7 @@ import {
 } from '@application/ports/output/realtime.port';
 import { PrismaService } from '@infrastructure/prisma/prisma.service';
 import type { NotificationType } from '../../generated/prisma/enums';
+import { isChatInboxNotification } from '@application/notifications/chat-inbox-notification';
 
 @Injectable()
 export class PrismaNotificationService implements NotificationServicePort {
@@ -20,6 +21,10 @@ export class PrismaNotificationService implements NotificationServicePort {
   ) {}
 
   async create(input: NotificationInput): Promise<void> {
+    if (isChatInboxNotification(input)) {
+      return;
+    }
+
     const notification = await this.prisma.notification.create({
       data: {
         userId: input.userId,

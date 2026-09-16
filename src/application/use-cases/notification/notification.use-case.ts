@@ -4,6 +4,7 @@ import {
   NOTIFICATION_REPOSITORY,
   type NotificationRepository,
 } from '@domain/repositories/notification.repository';
+import { isChatInboxNotification } from '@application/notifications/chat-inbox-notification';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -29,7 +30,8 @@ export class GetUserNotificationsUseCase {
 
   async execute(userId: number) {
     try {
-      return await this.notifications.findByUserId(userId);
+      const items = await this.notifications.findByUserId(userId);
+      return items.filter((item) => !isChatInboxNotification(item));
     } catch (error) {
       throw rawUnhandled(error);
     }
