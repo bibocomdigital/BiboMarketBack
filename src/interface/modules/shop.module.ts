@@ -24,6 +24,7 @@ import { HybridFileStorage } from '@infrastructure/storage/hybrid-file-storage';
 import { PrismaNotificationService } from '@infrastructure/notification/prisma-notification.service';
 import { ShopController } from '@interface/controllers/shop.controller';
 import { ExpressContractFilter } from '@interface/filters/express-contract.filter';
+import { LogoUploadFilter } from '@interface/filters/logo-upload.filter';
 import { UsersAuthGuard } from '@interface/guards/users-auth.guard';
 
 @Module({
@@ -47,6 +48,7 @@ import { UsersAuthGuard } from '@interface/guards/users-auth.guard';
     GetShopMessagesUseCase,
     UsersAuthGuard,
     ExpressContractFilter,
+    LogoUploadFilter,
   ],
 })
 export class ShopModule {}

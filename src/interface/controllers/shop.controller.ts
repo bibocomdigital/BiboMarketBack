@@ -17,8 +17,10 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags } from '@nestjs/swagger';
 import { diskStorage } from 'multer';
+import { mkdirSync } from 'node:fs';
 import { extname } from 'node:path';
 import type { Request } from 'express';
+import { ExpressContractException } from '@domain/exceptions/express-contract.exception';
 import {
   ContactMerchantUseCase,
   CreateShopUseCase,
@@ -33,21 +35,54 @@ import {
   UpdateShopUseCase,
 } from '@application/use-cases/shop/shop.use-case';
 import { ExpressContractFilter } from '@interface/filters/express-contract.filter';
+import { LogoUploadFilter } from '@interface/filters/logo-upload.filter';
 import { UsersAuthGuard } from '@interface/guards/users-auth.guard';
 import { currentUserId } from '@interface/guards/express-auth.guard';
 
+const LOGO_DIR = 'uploads/temp';
+const ALLOWED_LOGO_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+];
+const ALLOWED_LOGO_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif'];
+
 const logoUpload = FileInterceptor('logo', {
   storage: diskStorage({
-    destination: 'uploads/temp',
+    destination: (_req, _file, callback) => {
+      mkdirSync(LOGO_DIR, { recursive: true });
+      callback(null, LOGO_DIR);
+    },
     filename: (_req, file, callback) => {
       const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
       callback(null, uniqueSuffix + extname(file.originalname));
     },
   }),
+  fileFilter: (_req, file, callback) => {
+    const ext = extname(file.originalname).toLowerCase();
+    if (
+      ALLOWED_LOGO_TYPES.includes(file.mimetype) ||
+      ALLOWED_LOGO_EXTENSIONS.includes(ext)
+    ) {
+      callback(null, true);
+      return;
+    }
+    callback(
+      new ExpressContractException(
+        400,
+        'Format de logo non autorisé (JPG, PNG, WEBP ou GIF)',
+        'INVALID_FILE_TYPE',
+      ),
+      false,
+    );
+  },
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 @ApiTags('shop')
-@UseFilters(ExpressContractFilter)
+@UseFilters(ExpressContractFilter, LogoUploadFilter)
 @Controller('shop')
 export class ShopController {
   constructor(

@@ -9,6 +9,8 @@ import { LoginUserUseCase } from '@application/use-cases/auth/login-user.use-cas
 import { ForgotPasswordUseCase } from '@application/use-cases/auth/forgot-password.use-case';
 import { ResetPasswordUseCase } from '@application/use-cases/auth/reset-password.use-case';
 import { VerifyRegistrationUseCase } from '@application/use-cases/auth/verify-registration.use-case';
+import { SendPhoneVerificationCodeUseCase } from '@application/use-cases/auth/send-phone-verification.use-case';
+import { VerifyPhoneUseCase } from '@application/use-cases/auth/verify-phone.use-case';
 import {
   ChangePasswordUseCase,
   DeleteUserAccountUseCase,
@@ -61,6 +63,8 @@ import { UsersAuthGuard } from '@interface/guards/users-auth.guard';
     ForgotPasswordUseCase,
     ResetPasswordUseCase,
     VerifyRegistrationUseCase,
+    SendPhoneVerificationCodeUseCase,
+    VerifyPhoneUseCase,
     GetUserProfileUseCase,
     UpdateUserProfileUseCase,
     ChangePasswordUseCase,

@@ -14,6 +14,9 @@ export interface User {
   verificationCode: string | null;
   tokenExpiry: Date | null;
   resetCode: string | null;
+  phoneVerified: boolean;
+  phoneVerificationCode: string | null;
+  phoneVerificationExpiry: Date | null;
   onboardingStep: string;
   profileCompletion: number;
   isProfileCompleted: boolean;

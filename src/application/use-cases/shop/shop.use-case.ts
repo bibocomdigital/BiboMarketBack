@@ -22,6 +22,7 @@ import {
   type NotificationServicePort,
 } from '@application/ports/output/notification.port';
 import { NODE_ENV } from '@application/config/env';
+import { isManagedMediaUrl } from '@application/use-cases/product/product.use-case';
 
 const shopErrors = {
   creation: {
@@ -509,16 +510,28 @@ export class DeleteShopUseCase {
         }
       }
 
-      const products = await this.shops.findProductsWithImages(id);
+      const products = (await this.shops.findProductsWithImages(id)) as {
+        videoUrl?: string | null;
+        images?: { imageUrl?: string; url?: string }[];
+      }[];
       for (const product of products) {
         for (const image of product.images ?? []) {
           const url = productImageUrl(image);
-          if (url && url.includes('cloudinary.com')) {
+          if (url && isManagedMediaUrl(url)) {
             try {
               await this.fileStorage.deleteImage(url, 'product_images');
             } catch {
               // Continuer malgré l'erreur
             }
+          }
+        }
+
+        const videoUrl = product.videoUrl;
+        if (videoUrl && isManagedMediaUrl(videoUrl)) {
+          try {
+            await this.fileStorage.deleteVideo(videoUrl, 'product_videos');
+          } catch {
+            // Continuer malgré l'erreur
           }
         }
       }

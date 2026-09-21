@@ -9,6 +9,7 @@ import {
   DeleteProductUseCase,
   GetProductByIdUseCase,
   SearchProductsUseCase,
+  UpdateProductStatusUseCase,
   UpdateProductStockUseCase,
 } from '@application/use-cases/product/product.use-case';
 
@@ -90,6 +91,7 @@ function productsRepo(overrides: Partial<ProductRepository> = {}): ProductReposi
     findCreatedView: jest.fn().mockResolvedValue(product),
     findDetailById: jest.fn().mockResolvedValue(product),
     findById: jest.fn().mockResolvedValue(product),
+    findByIdWithImages: jest.fn().mockResolvedValue(product),
     findFollowerIds: jest.fn().mockResolvedValue([]),
     createImages: jest.fn(),
     deleteImagesByProductId: jest.fn(),
@@ -211,11 +213,92 @@ describe('SearchProductsUseCase', () => {
 
 describe('DeleteProductUseCase', () => {
   it('refuse la suppression par un autre utilisateur', async () => {
-    const useCase = new DeleteProductUseCase(productsRepo());
+    const useCase = new DeleteProductUseCase(productsRepo(), fileStorage);
 
     await expect(useCase.execute(20, 99)).rejects.toMatchObject({
       statusCode: 403,
     });
+  });
+
+  it('supprime les médias hébergés (images Cloudinary + vidéo Bunny)', async () => {
+    const products = productsRepo({
+      findByIdWithImages: jest.fn().mockResolvedValue({
+        ...product,
+        videoUrl: 'https://storage.bunnycdn.com/bibocom/product_videos/123.mp4',
+        images: [
+          { imageUrl: 'https://res.cloudinary.com/demo/image/upload/v1/product.jpg' },
+        ],
+      }),
+    });
+    const storage = {
+      ...fileStorage,
+      deleteImage: jest.fn().mockResolvedValue(undefined),
+      deleteVideo: jest.fn().mockResolvedValue(undefined),
+    } as FileStoragePort;
+    const useCase = new DeleteProductUseCase(products, storage);
+
+    await useCase.execute(20, 1);
+
+    expect(storage.deleteImage).toHaveBeenCalledWith(
+      'https://res.cloudinary.com/demo/image/upload/v1/product.jpg',
+      'product_images',
+    );
+    expect(storage.deleteVideo).toHaveBeenCalledWith(
+      'https://storage.bunnycdn.com/bibocom/product_videos/123.mp4',
+      'product_videos',
+    );
+    expect(products.deleteImagesByProductId).toHaveBeenCalledWith(20);
+    expect(products.delete).toHaveBeenCalledWith(20);
+  });
+
+  it('ignore les URLs externes (ex. YouTube)', async () => {
+    const products = productsRepo({
+      findByIdWithImages: jest.fn().mockResolvedValue({
+        ...product,
+        videoUrl: 'https://youtube.com/watch?v=abc',
+        images: [],
+      }),
+    });
+    const storage = {
+      ...fileStorage,
+      deleteImage: jest.fn().mockResolvedValue(undefined),
+      deleteVideo: jest.fn().mockResolvedValue(undefined),
+    } as FileStoragePort;
+    const useCase = new DeleteProductUseCase(products, storage);
+
+    await useCase.execute(20, 1);
+
+    expect(storage.deleteVideo).not.toHaveBeenCalled();
+  });
+});
+
+describe('UpdateProductStatusUseCase', () => {
+  it('refuse un statut invalide', async () => {
+    const useCase = new UpdateProductStatusUseCase(productsRepo());
+
+    await expect(useCase.execute(20, 1, 'ARCHIVED')).rejects.toMatchObject({
+      statusCode: 400,
+    });
+  });
+
+  it('refuse la modification par un autre utilisateur', async () => {
+    const useCase = new UpdateProductStatusUseCase(productsRepo());
+
+    await expect(useCase.execute(20, 99, 'DRAFT')).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
+
+  it('publie le produit', async () => {
+    const products = productsRepo();
+    const useCase = new UpdateProductStatusUseCase(products);
+
+    await useCase.execute(20, 1, 'PUBLISHED');
+
+    expect(products.update).toHaveBeenCalledWith(
+      20,
+      expect.objectContaining({ status: 'PUBLISHED' }),
+    );
   });
 });
 

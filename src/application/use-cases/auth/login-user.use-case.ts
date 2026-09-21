@@ -23,11 +23,16 @@ import { Role } from '@domain/types/role';
 export class LoginUserUseCase {
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
-    @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasherPort,
+    @Inject(PASSWORD_HASHER)
+    private readonly passwordHasher: PasswordHasherPort,
     @Inject(JWT_SERVICE_TOKEN) private readonly jwtService: JwtServicePort,
   ) {}
 
-  async execute(input: { phoneNumber?: string; email?: string; password?: string }) {
+  async execute(input: {
+    phoneNumber?: string;
+    email?: string;
+    password?: string;
+  }) {
     const { phoneNumber, email, password } = input;
 
     const user = await this.users.findFirstByPhoneOrEmail({
@@ -88,6 +93,8 @@ export class LoginUserUseCase {
         role: user.role,
         country: user.country,
         city: user.city,
+        phoneVerified: user.phoneVerified,
+        googleId: user.googleId ?? null,
         profileCompletion,
       },
       onboarding: {

@@ -29,6 +29,7 @@ import {
   GetRelatedProductsUseCase,
   ListProductsUseCase,
   SearchProductsUseCase,
+  UpdateProductStatusUseCase,
   UpdateProductStockUseCase,
   UpdateProductUseCase,
   UpdateProductWithImagesUseCase,
@@ -75,6 +76,7 @@ export class ProductController {
     private readonly updateProductWithImages: UpdateProductWithImagesUseCase,
     private readonly updateProduct: UpdateProductUseCase,
     private readonly updateProductStock: UpdateProductStockUseCase,
+    private readonly updateProductStatus: UpdateProductStatusUseCase,
     private readonly deleteProduct: DeleteProductUseCase,
   ) {}
 
@@ -227,6 +229,20 @@ export class ProductController {
     },
   ) {
     return this.updateProduct.execute(parseInt(id, 10), currentUserId(request), body);
+  }
+
+  @Patch(':id/status')
+  @UseGuards(UsersAuthGuard)
+  updateStatus(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: { status?: string },
+  ) {
+    return this.updateProductStatus.execute(
+      parseInt(id, 10),
+      currentUserId(request),
+      body.status,
+    );
   }
 
   @Patch(':id/stock')

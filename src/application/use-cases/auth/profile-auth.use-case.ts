@@ -38,6 +38,8 @@ export class GetUserProfileUseCase {
         firstName: user.firstName,
         lastName: user.lastName,
         phoneNumber: user.phoneNumber,
+        phoneVerified: user.phoneVerified,
+        googleId: user.googleId ?? null,
         country: user.country,
         city: user.city,
         department: user.department,
@@ -55,7 +57,8 @@ export class GetUserProfileUseCase {
 export class ChangePasswordUseCase {
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
-    @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasherPort,
+    @Inject(PASSWORD_HASHER)
+    private readonly passwordHasher: PasswordHasherPort,
   ) {}
 
   async execute(userId: number, currentPassword: string, newPassword: string) {
@@ -150,6 +153,7 @@ export class VerifyAuthTokenUseCase {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        phoneVerified: user.phoneVerified,
       },
     };
   }
@@ -197,6 +201,7 @@ export class GetAllUsersUseCase {
         photo: user.photo,
         role: user.role,
         isVerified: user.isVerified,
+        phoneVerified: user.phoneVerified,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       })),
@@ -320,11 +325,20 @@ export class UpdateUserProfileUseCase {
     }
 
     const dataToUpdate: Record<string, unknown> = {};
-    const { firstName, lastName, phoneNumber, country, city, department, commune } =
-      input;
+    const {
+      firstName,
+      lastName,
+      phoneNumber,
+      country,
+      city,
+      department,
+      commune,
+    } = input;
 
-    if (firstName !== undefined && firstName !== '') dataToUpdate.firstName = firstName;
-    if (lastName !== undefined && lastName !== '') dataToUpdate.lastName = lastName;
+    if (firstName !== undefined && firstName !== '')
+      dataToUpdate.firstName = firstName;
+    if (lastName !== undefined && lastName !== '')
+      dataToUpdate.lastName = lastName;
     if (phoneNumber !== undefined && phoneNumber !== '') {
       dataToUpdate.phoneNumber = phoneNumber;
     }
@@ -388,9 +402,10 @@ export class UpdateUserProfileUseCase {
         'Erreur interne du serveur',
         'INTERNAL_ERROR',
         {
-          details: NODE_ENV === 'development' && error instanceof Error
-            ? error.message
-            : undefined,
+          details:
+            NODE_ENV === 'development' && error instanceof Error
+              ? error.message
+              : undefined,
         },
       );
     }

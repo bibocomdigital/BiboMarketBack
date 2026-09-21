@@ -22,7 +22,7 @@ import {
   NOTIFICATION_SERVICE,
   type NotificationServicePort,
 } from '@application/ports/output/notification.port';
-import { NODE_ENV } from '@application/config/env';
+import { BUNNY_CDN_HOST, NODE_ENV } from '@application/config/env';
 
 export type ProductQuery = Record<string, string | string[] | undefined>;
 
@@ -55,6 +55,20 @@ function unlinkIfExists(filePath?: string) {
   if (filePath && existsSync(filePath)) {
     unlinkSync(filePath);
   }
+}
+
+/** Vrai si l'URL pointe vers un média hébergé par notre stockage (Cloudinary/Bunny). */
+export function isManagedMediaUrl(url?: string | null): boolean {
+  if (!url) {
+    return false;
+  }
+  if (url.includes('cloudinary') || url.includes('bunnycdn.com')) {
+    return true;
+  }
+  if (BUNNY_CDN_HOST && url.includes(BUNNY_CDN_HOST)) {
+    return true;
+  }
+  return false;
 }
 
 export function cleanupProductFiles(files?: ProductMediaFiles) {
@@ -504,11 +518,11 @@ export class UpdateProductWithImagesUseCase {
         try {
           await this.products.deleteImagesByUrls(id, imagesToRemove);
           for (const imageUrl of imagesToRemove) {
-            if (imageUrl.includes('cloudinary')) {
+            if (isManagedMediaUrl(imageUrl)) {
               try {
                 await this.fileStorage.deleteImage(imageUrl, 'product_images');
               } catch {
-                // Continuer malgré Cloudinary
+                // Continuer malgré l'erreur de stockage
               }
             }
           }
@@ -554,10 +568,7 @@ export class UpdateProductWithImagesUseCase {
       const videoFile = files?.video?.[0];
       if (videoFile) {
         try {
-          if (
-            existingProduct.videoUrl &&
-            String(existingProduct.videoUrl).includes('cloudinary')
-          ) {
+          if (isManagedMediaUrl(existingProduct.videoUrl)) {
             try {
               await this.fileStorage.deleteVideo(
                 existingProduct.videoUrl,
@@ -582,6 +593,15 @@ export class UpdateProductWithImagesUseCase {
         }
       } else if (input.videoUrl === undefined) {
         finalVideoUrl = existingProduct.videoUrl;
+      } else if (!input.videoUrl) {
+        const oldVideo = existingProduct.videoUrl as string | undefined;
+        if (oldVideo && isManagedMediaUrl(oldVideo)) {
+          try {
+            await this.fileStorage.deleteVideo(oldVideo, 'product_videos');
+          } catch {
+            // Continuer malgré l'erreur de stockage
+          }
+        }
       }
 
       let parsedPrice = existingProduct.price;
@@ -685,11 +705,16 @@ export class UpdateProductWithImagesUseCase {
 export class DeleteProductUseCase {
   constructor(
     @Inject(PRODUCT_REPOSITORY) private readonly products: ProductRepository,
+    @Inject(FILE_STORAGE) private readonly fileStorage: FileStoragePort,
   ) {}
 
   async execute(id: number, userId: number) {
     try {
-      const product = await this.products.findById(id);
+      const product = (await this.products.findByIdWithImages(id)) as {
+        userId: number;
+        videoUrl?: string | null;
+        images?: { imageUrl?: string; url?: string }[];
+      } | null;
       if (!product) {
         throw ExpressContractException.raw(404, { message: 'Produit non trouvé' });
       }
@@ -698,6 +723,27 @@ export class DeleteProductUseCase {
           message: "Vous n'êtes pas autorisé à supprimer ce produit",
         });
       }
+
+      for (const image of product.images ?? []) {
+        const url = image.imageUrl ?? image.url;
+        if (url && isManagedMediaUrl(url)) {
+          try {
+            await this.fileStorage.deleteImage(url, 'product_images');
+          } catch {
+            // Continuer malgré l'erreur de stockage
+          }
+        }
+      }
+
+      const videoUrl = product.videoUrl;
+      if (videoUrl && isManagedMediaUrl(videoUrl)) {
+        try {
+          await this.fileStorage.deleteVideo(videoUrl, 'product_videos');
+        } catch {
+          // Continuer malgré l'erreur de stockage
+        }
+      }
+
       await this.products.deleteImagesByProductId(id);
       await this.products.delete(id);
       return { message: 'Produit supprimé avec succès' };
@@ -749,6 +795,50 @@ export class UpdateProductStockUseCase {
       }
       throw ExpressContractException.raw(500, {
         message: 'Une erreur est survenue lors de la mise à jour du stock',
+        error: errorMessage(error),
+      });
+    }
+  }
+}
+
+@Injectable()
+export class UpdateProductStatusUseCase {
+  constructor(
+    @Inject(PRODUCT_REPOSITORY) private readonly products: ProductRepository,
+  ) {}
+
+  async execute(id: number, userId: number, status?: string) {
+    try {
+      const product = await this.products.findById(id);
+      if (!product) {
+        throw ExpressContractException.raw(404, {
+          message: 'Produit non trouvé',
+        });
+      }
+      if (product.userId !== userId) {
+        throw ExpressContractException.raw(403, {
+          message: "Vous n'êtes pas autorisé à modifier ce produit",
+        });
+      }
+      if (status !== 'DRAFT' && status !== 'PUBLISHED') {
+        throw ExpressContractException.raw(400, {
+          message: 'Statut invalide (DRAFT ou PUBLISHED attendu)',
+        });
+      }
+      const updatedProduct = await this.products.update(id, {
+        status,
+        updatedAt: new Date(),
+      });
+      return {
+        message: 'Statut du produit mis à jour avec succès',
+        product: updatedProduct,
+      };
+    } catch (error) {
+      if (error instanceof ExpressContractException) {
+        throw error;
+      }
+      throw ExpressContractException.raw(500, {
+        message: 'Une erreur est survenue lors de la mise à jour du statut',
         error: errorMessage(error),
       });
     }

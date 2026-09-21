@@ -26,6 +26,8 @@ import { HandleGoogleLoginUseCase } from '@application/use-cases/auth/google-log
 import { ForgotPasswordUseCase } from '@application/use-cases/auth/forgot-password.use-case';
 import { ResetPasswordUseCase } from '@application/use-cases/auth/reset-password.use-case';
 import { VerifyRegistrationUseCase } from '@application/use-cases/auth/verify-registration.use-case';
+import { SendPhoneVerificationCodeUseCase } from '@application/use-cases/auth/send-phone-verification.use-case';
+import { VerifyPhoneUseCase } from '@application/use-cases/auth/verify-phone.use-case';
 import {
   ChangePasswordUseCase,
   DeleteUserAccountUseCase,
@@ -88,6 +90,8 @@ export class AuthController {
     private readonly forgotPassword: ForgotPasswordUseCase,
     private readonly resetPassword: ResetPasswordUseCase,
     private readonly verifyRegistration: VerifyRegistrationUseCase,
+    private readonly sendPhoneVerificationCode: SendPhoneVerificationCodeUseCase,
+    private readonly verifyPhone: VerifyPhoneUseCase,
     private readonly getUserProfile: GetUserProfileUseCase,
     private readonly updateUserProfile: UpdateUserProfileUseCase,
     private readonly changePassword: ChangePasswordUseCase,
@@ -157,7 +161,10 @@ export class AuthController {
       return response.redirect('/login');
     }
 
-    let result: { user: { id: number; email: string | null }; needsCompletion: boolean };
+    let result: {
+      user: { id: number; email: string | null };
+      needsCompletion: boolean;
+    };
     try {
       result = await this.handleGoogleLogin.execute(code);
     } catch {
@@ -223,9 +230,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  requestPasswordReset(
-    @Body() body: { phoneNumber?: string; email?: string },
-  ) {
+  requestPasswordReset(@Body() body: { phoneNumber?: string; email?: string }) {
     return this.forgotPassword.execute(body);
   }
 
@@ -240,6 +245,20 @@ export class AuthController {
     },
   ) {
     return this.resetPassword.execute(body);
+  }
+
+  @Post('phone/send-code')
+  @HttpCode(200)
+  @UseGuards(ExpressAuthGuard)
+  sendPhoneCode(@Req() request: Request) {
+    return this.sendPhoneVerificationCode.execute(currentUserId(request));
+  }
+
+  @Post('phone/verify')
+  @HttpCode(200)
+  @UseGuards(ExpressAuthGuard)
+  verifyPhoneNumber(@Req() request: Request, @Body() body: { code?: string }) {
+    return this.verifyPhone.execute(currentUserId(request), body.code ?? '');
   }
 
   @Get('profile')
@@ -375,15 +394,15 @@ export class AuthController {
     @Req() request: Request,
     @UploadedFile() file?: { path: string },
   ) {
-    return this.completeProfilePhoto.execute(currentUserId(request), file?.path);
+    return this.completeProfilePhoto.execute(
+      currentUserId(request),
+      file?.path,
+    );
   }
 
   @Post('onboarding/skip')
   @UseGuards(ExpressAuthGuard)
-  onboardingSkip(
-    @Req() request: Request,
-    @Body() body: { step?: string },
-  ) {
+  onboardingSkip(@Req() request: Request, @Body() body: { step?: string }) {
     return this.skipOnboardingStep.execute(currentUserId(request), body.step);
   }
 }
