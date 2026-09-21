@@ -15,7 +15,7 @@ import {
 } from '@application/use-cases/message/message.use-case';
 import { PrismaUserRepository } from '@infrastructure/repositories/prisma-user.repository';
 import { PrismaMessageRepository } from '@infrastructure/repositories/prisma-message.repository';
-import { CloudinaryFileStorage } from '@infrastructure/storage/cloudinary-file-storage';
+import { HybridFileStorage } from '@infrastructure/storage/hybrid-file-storage';
 import { MessageController } from '@interface/controllers/message.controller';
 import { ExpressContractFilter } from '@interface/filters/express-contract.filter';
 import { MessageUploadFilter } from '@interface/filters/message-upload.filter';
@@ -26,7 +26,7 @@ import { UsersAuthGuard } from '@interface/guards/users-auth.guard';
   providers: [
     { provide: USER_REPOSITORY, useClass: PrismaUserRepository },
     { provide: MESSAGE_REPOSITORY, useClass: PrismaMessageRepository },
-    { provide: FILE_STORAGE, useClass: CloudinaryFileStorage },
+    { provide: FILE_STORAGE, useFactory: () => new HybridFileStorage() },
     SendMessageUseCase,
     GetConversationsUseCase,
     GetMessagesUseCase,

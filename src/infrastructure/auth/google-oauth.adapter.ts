@@ -2,15 +2,17 @@ import { Injectable } from '@nestjs/common';
 import {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
+  GOOGLE_CALLBACK_URL as GOOGLE_CALLBACK_URL_ENV,
 } from '@application/config/env';
 import type {
   GoogleOAuthPort,
   GoogleProfile,
 } from '@application/ports/output/google-oauth.port';
 
-/** Même callbackURL hardcodée que Express (`passport.js`). */
+/** Callback Google : doit correspondre à l'URI enregistrée dans la console Google.
+ *  Surchargable via `GOOGLE_CALLBACK_URL` (défaut : API Dockerisée `3007 → 3000`). */
 export const GOOGLE_CALLBACK_URL =
-  'http://localhost:8001/api/auth/google/callback';
+  GOOGLE_CALLBACK_URL_ENV ?? 'http://localhost:3007/api/auth/google/callback';
 
 @Injectable()
 export class GoogleOAuthHttpAdapter implements GoogleOAuthPort {

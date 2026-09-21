@@ -24,7 +24,7 @@ import {
 import { PrismaUserRepository } from '@infrastructure/repositories/prisma-user.repository';
 import { PrismaShopRepository } from '@infrastructure/repositories/prisma-shop.repository';
 import { PrismaProductRepository } from '@infrastructure/repositories/prisma-product.repository';
-import { CloudinaryFileStorage } from '@infrastructure/storage/cloudinary-file-storage';
+import { HybridFileStorage } from '@infrastructure/storage/hybrid-file-storage';
 import { PrismaNotificationService } from '@infrastructure/notification/prisma-notification.service';
 import { ProductController } from '@interface/controllers/product.controller';
 import { ExpressContractFilter } from '@interface/filters/express-contract.filter';
@@ -41,7 +41,7 @@ import {
     { provide: USER_REPOSITORY, useClass: PrismaUserRepository },
     { provide: SHOP_REPOSITORY, useClass: PrismaShopRepository },
     { provide: PRODUCT_REPOSITORY, useClass: PrismaProductRepository },
-    { provide: FILE_STORAGE, useClass: CloudinaryFileStorage },
+    { provide: FILE_STORAGE, useFactory: () => new HybridFileStorage() },
     { provide: NOTIFICATION_SERVICE, useClass: PrismaNotificationService },
     CreateProductUseCase,
     ListProductsUseCase,

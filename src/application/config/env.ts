@@ -4,6 +4,8 @@ export const JWT_SECRET = process.env.JWT_SECRET;
 
 export const FRONTEND_URL = process.env.FRONTEND_URL;
 
+export const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL;
+
 export const FRONTEND_URL_ANDROID = process.env.FRONTEND_URL_ANDROID;
 
 export const FRONTEND_URL_IOS = process.env.FRONTEND_URL_IOS;
@@ -20,13 +22,15 @@ export const PAYDUNYA_CALL_BACK = process.env.PAYDUNYA_CALL_BACK;
 
 export const PAYDUNYA_RETURN_URL = process.env.PAYDUNYA_RETURN_URL;
 
-export const PAYDUNYA_RETURN_URL_ANDROID = process.env.PAYDUNYA_RETURN_URL_ANDROID;
+export const PAYDUNYA_RETURN_URL_ANDROID =
+  process.env.PAYDUNYA_RETURN_URL_ANDROID;
 
 export const PAYDUNYA_RETURN_URL_IOS = process.env.PAYDUNYA_RETURN_URL_IOS;
 
 export const PAYDUNYA_CANCEL_URL = process.env.PAYDUNYA_CANCEL_URL;
 
-export const PAYDUNYA_CANCEL_URL_ANDROID = process.env.PAYDUNYA_CANCEL_URL_ANDROID;
+export const PAYDUNYA_CANCEL_URL_ANDROID =
+  process.env.PAYDUNYA_CANCEL_URL_ANDROID;
 
 export const PAYDUNYA_CANCEL_URL_IOS = process.env.PAYDUNYA_CANCEL_URL_IOS;
 
@@ -37,8 +41,6 @@ export const LOGO_URL = process.env.LOGO_URL;
 export const PAYDUNYA_MODE = process.env.PAYDUNYA_MODE;
 
 export const DNS = process.env.DNS;
-
-export const BUNNY_STREAM_SECRET = process.env.BUNNY_STREAM_SECRET;
 
 export const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 
@@ -134,6 +136,20 @@ export const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME;
 export const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
 
 export const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+
+export const BUNNY_API_KEY = process.env.BUNNY_API_KEY;
+
+export const BUNNY_CDN_HOST = process.env.BUNNY_CDN_HOST;
+
+export const BUNNY_STORAGE_ZONE = process.env.BUNNY_STORAGE_ZONE;
+
+export const BUNNY_STREAM_API_KEY = process.env.BUNNY_STREAM_API_KEY;
+
+export const BUNNY_STREAM_LIBRARY_ID = process.env.BUNNY_STREAM_LIBRARY_ID;
+
+export const BUNNY_STREAM_API_HOST = process.env.BUNNY_STREAM_API_HOST;
+
+export const BUNNY_STREAM_SECRET = process.env.BUNNY_STREAM_SECRET;
 
 export const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 

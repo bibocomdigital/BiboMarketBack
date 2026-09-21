@@ -34,9 +34,9 @@ import {
 } from '@application/use-cases/user/user.use-case';
 import { BcryptPasswordHasher } from '@infrastructure/auth/bcrypt-password-hasher';
 import { PrismaUserRepository } from '@infrastructure/repositories/prisma-user.repository';
-import { TwilioSmsAdapter } from '@infrastructure/sms/twilio-sms.adapter';
+import { SmsAdapter } from '@infrastructure/sms/sms.adapter';
 import { SmtpEmailAdapter } from '@infrastructure/email/smtp-email.adapter';
-import { CloudinaryFileStorage } from '@infrastructure/storage/cloudinary-file-storage';
+import { HybridFileStorage } from '@infrastructure/storage/hybrid-file-storage';
 import { GoogleOAuthHttpAdapter } from '@infrastructure/auth/google-oauth.adapter';
 import { GOOGLE_OAUTH } from '@application/ports/output/google-oauth.port';
 import { AuthController } from '@interface/controllers/auth.controller';
@@ -52,9 +52,9 @@ import { UsersAuthGuard } from '@interface/guards/users-auth.guard';
   providers: [
     { provide: USER_REPOSITORY, useClass: PrismaUserRepository },
     { provide: PASSWORD_HASHER, useClass: BcryptPasswordHasher },
-    { provide: SMS_SERVICE, useClass: TwilioSmsAdapter },
+    { provide: SMS_SERVICE, useFactory: () => new SmsAdapter() },
     { provide: EMAIL_SERVICE, useClass: SmtpEmailAdapter },
-    { provide: FILE_STORAGE, useClass: CloudinaryFileStorage },
+    { provide: FILE_STORAGE, useFactory: () => new HybridFileStorage() },
     { provide: GOOGLE_OAUTH, useClass: GoogleOAuthHttpAdapter },
     RegisterUserUseCase,
     LoginUserUseCase,

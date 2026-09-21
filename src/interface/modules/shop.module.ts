@@ -20,7 +20,7 @@ import {
 import { PrismaUserRepository } from '@infrastructure/repositories/prisma-user.repository';
 import { PrismaShopRepository } from '@infrastructure/repositories/prisma-shop.repository';
 import { SmtpEmailAdapter } from '@infrastructure/email/smtp-email.adapter';
-import { CloudinaryFileStorage } from '@infrastructure/storage/cloudinary-file-storage';
+import { HybridFileStorage } from '@infrastructure/storage/hybrid-file-storage';
 import { PrismaNotificationService } from '@infrastructure/notification/prisma-notification.service';
 import { ShopController } from '@interface/controllers/shop.controller';
 import { ExpressContractFilter } from '@interface/filters/express-contract.filter';
@@ -32,7 +32,7 @@ import { UsersAuthGuard } from '@interface/guards/users-auth.guard';
     { provide: USER_REPOSITORY, useClass: PrismaUserRepository },
     { provide: SHOP_REPOSITORY, useClass: PrismaShopRepository },
     { provide: EMAIL_SERVICE, useClass: SmtpEmailAdapter },
-    { provide: FILE_STORAGE, useClass: CloudinaryFileStorage },
+    { provide: FILE_STORAGE, useFactory: () => new HybridFileStorage() },
     { provide: NOTIFICATION_SERVICE, useClass: PrismaNotificationService },
     CreateShopUseCase,
     GetMyShopUseCase,
