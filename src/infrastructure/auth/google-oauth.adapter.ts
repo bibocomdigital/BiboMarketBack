@@ -6,6 +6,7 @@ import {
 } from '@application/config/env';
 import type {
   GoogleOAuthPort,
+  GoogleOAuthUrlOptions,
   GoogleProfile,
 } from '@application/ports/output/google-oauth.port';
 
@@ -16,13 +17,19 @@ export const GOOGLE_CALLBACK_URL =
 
 @Injectable()
 export class GoogleOAuthHttpAdapter implements GoogleOAuthPort {
-  getAuthorizationUrl(): string {
+  getAuthorizationUrl(options: GoogleOAuthUrlOptions = {}): string {
     const params = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID ?? '',
       redirect_uri: GOOGLE_CALLBACK_URL,
       response_type: 'code',
       scope: 'profile email',
     });
+    if (options.selectAccount) {
+      params.set('prompt', 'select_account');
+    }
+    if (options.state) {
+      params.set('state', options.state);
+    }
     return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
 

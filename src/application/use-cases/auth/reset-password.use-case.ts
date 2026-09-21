@@ -8,12 +8,14 @@ import {
   PASSWORD_HASHER,
   type PasswordHasherPort,
 } from '@application/ports/output/password-hasher.port';
+import { verifyOtpCode } from '@application/utils/otp.util';
 
 @Injectable()
 export class ResetPasswordUseCase {
   constructor(
     @Inject(USER_REPOSITORY) private readonly users: UserRepository,
-    @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasherPort,
+    @Inject(PASSWORD_HASHER)
+    private readonly passwordHasher: PasswordHasherPort,
   ) {}
 
   async execute(input: {
@@ -34,6 +36,14 @@ export class ResetPasswordUseCase {
       );
     }
 
+    if (!user.resetCode) {
+      throw new ExpressContractException(
+        400,
+        'Aucun code de réinitialisation en attente',
+        'RESET_CODE_MISSING',
+      );
+    }
+
     if (!user.tokenExpiry || new Date() > user.tokenExpiry) {
       throw new ExpressContractException(
         400,
@@ -42,7 +52,8 @@ export class ResetPasswordUseCase {
       );
     }
 
-    if (user.resetCode !== resetCode) {
+    const codeValid = await verifyOtpCode(resetCode || '', user.resetCode);
+    if (!codeValid) {
       throw new ExpressContractException(
         400,
         'Le code de réinitialisation est incorrect',
@@ -50,7 +61,9 @@ export class ResetPasswordUseCase {
       );
     }
 
-    const hashedPassword = await this.passwordHasher.hash(newPassword as string);
+    const hashedPassword = await this.passwordHasher.hash(
+      newPassword as string,
+    );
 
     await this.users.update(user.id, {
       password: hashedPassword,

@@ -13,7 +13,14 @@ import {
   SMS_SERVICE,
   type SmsServicePort,
 } from '@application/ports/output/sms-service.port';
-import { generateVerificationCode } from './register-user.use-case';
+import {
+  generateOtpCode,
+  getOtpExpiryDate,
+  hashOtpCode,
+} from '@application/utils/otp.util';
+
+const RESET_CODE_TTL_MS = 60 * 60 * 1000;
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 @Injectable()
 export class ForgotPasswordUseCase {
@@ -26,15 +33,7 @@ export class ForgotPasswordUseCase {
   async execute(input: { phoneNumber?: string; email?: string }) {
     const { phoneNumber, email } = input;
 
-    if (phoneNumber && email) {
-      throw new ExpressContractException(
-        400,
-        'Veuillez fournir soit un numéro de téléphone, soit une adresse email',
-        'INVALID_IDENTIFIER',
-      );
-    }
-
-    if (!phoneNumber && !email) {
+    if ((phoneNumber && email) || (!phoneNumber && !email)) {
       throw new ExpressContractException(
         400,
         'Veuillez fournir soit un numéro de téléphone, soit une adresse email',
@@ -47,69 +46,85 @@ export class ForgotPasswordUseCase {
       : await this.users.findByEmail(email as string);
 
     if (!user) {
+      // Message volontairement neutre pour ne pas révéler l'existence d'un compte
       throw new ExpressContractException(
         404,
-        "Aucun compte associé à cette adresse email n'a été trouvé",
+        "Aucun compte associé à cet identifiant n'a été trouvé",
         'USER_NOT_FOUND',
       );
     }
 
-    const resetCode = generateVerificationCode();
-    const tokenExpiry = new Date(Date.now() + 1 * 60 * 60 * 1000);
+    const channel = phoneNumber ? 'sms' : 'email';
+    const recipient = channel === 'email' ? user.email : user.phoneNumber;
+    if (!recipient) {
+      throw new ExpressContractException(
+        400,
+        channel === 'email'
+          ? 'Aucune adresse email associée à ce compte'
+          : 'Aucun numéro de téléphone associé à ce compte',
+        channel === 'email' ? 'EMAIL_MISSING' : 'PHONE_MISSING',
+      );
+    }
 
-    await this.users.update(user.id, { resetCode, tokenExpiry });
-
-    if (email && user.email) {
-      try {
-        await this.emailService.sendPasswordReset(user.email, resetCode);
-        return {
-          status: 'success',
-          message:
-            'Un code de réinitialisation a été envoyé à votre adresse email.',
-          email: user.email,
-        };
-      } catch {
-        if (NODE_ENV !== 'production') {
-          return {
-            status: 'partial_success',
-            message:
-              "Un code de réinitialisation a été généré mais l'email n'a pas pu être envoyé. Code de test:",
-            email: user.email,
-            testResetCode: resetCode,
-          };
-        }
+    // Anti double-envoi : minimum 60 s entre deux codes
+    if (user.resetCode && user.tokenExpiry) {
+      const lastSentAt = user.tokenExpiry.getTime() - RESET_CODE_TTL_MS;
+      if (Date.now() - lastSentAt < RESEND_COOLDOWN_MS) {
         throw new ExpressContractException(
-          500,
-          "Échec de l'envoi de l'email",
-          'EMAIL_FAILED',
+          429,
+          'Veuillez patienter avant de demander un nouveau code',
+          'TOO_MANY_REQUESTS',
         );
       }
     }
 
+    const code = generateOtpCode();
+    const hashedCode = await hashOtpCode(code);
+    const tokenExpiry = getOtpExpiryDate(RESET_CODE_TTL_MS);
+
+    await this.users.update(user.id, {
+      resetCode: hashedCode,
+      tokenExpiry,
+    });
+
     try {
+      if (channel === 'email') {
+        await this.emailService.sendPasswordReset(recipient, code);
+        return {
+          status: 'success',
+          message:
+            'Un code de réinitialisation a été envoyé à votre adresse email.',
+          email: recipient,
+        };
+      }
+
       await this.smsService.sendRaw(
-        user.phoneNumber as string,
-        `Votre code de réinitialisation : ${resetCode}`,
+        recipient,
+        `Bibomarket : votre code de réinitialisation est ${code}. Valable 1 heure.`,
       );
       return {
         status: 'success',
         message: 'Un code de réinitialisation a été envoyé par SMS.',
-        phoneNumber: user.phoneNumber,
+        phoneNumber: recipient,
       };
     } catch {
       if (NODE_ENV !== 'production') {
         return {
           status: 'partial_success',
           message:
-            "Un code de réinitialisation a été généré mais le SMS n'a pas pu être envoyé. Code de test:",
-          phoneNumber: user.phoneNumber,
-          testResetCode: resetCode,
+            channel === 'email'
+              ? "Un code a été généré mais l'email n'a pas pu être envoyé. Code de test :"
+              : "Un code a été généré mais le SMS n'a pas pu être envoyé. Code de test :",
+          [channel]: recipient,
+          testResetCode: code,
         };
       }
       throw new ExpressContractException(
         500,
-        "Erreur lors de l'envoi du SMS",
-        'SMS_FAILED',
+        channel === 'email'
+          ? "Échec de l'envoi de l'email"
+          : "Échec de l'envoi du SMS",
+        channel === 'email' ? 'EMAIL_FAILED' : 'SMS_FAILED',
       );
     }
   }

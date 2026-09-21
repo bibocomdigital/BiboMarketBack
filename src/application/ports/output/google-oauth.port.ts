@@ -8,7 +8,12 @@ export interface GoogleProfile {
   photos?: { value: string }[];
 }
 
+export interface GoogleOAuthUrlOptions {
+  state?: string;
+  selectAccount?: boolean;
+}
+
 export interface GoogleOAuthPort {
-  getAuthorizationUrl(): string;
+  getAuthorizationUrl(options?: GoogleOAuthUrlOptions): string;
   fetchProfile(code: string): Promise<GoogleProfile>;
 }

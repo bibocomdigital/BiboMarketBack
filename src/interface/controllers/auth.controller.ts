@@ -8,7 +8,6 @@ import {
   Post,
   Put,
   Query,
-  Redirect,
   Req,
   Res,
   UploadedFile,
@@ -51,6 +50,7 @@ import {
   UploadUserProfilePhotoUseCase,
 } from '@application/use-cases/user/user.use-case';
 import { FRONTEND_URL } from '@application/config/env';
+import * as crypto from 'crypto';
 import {
   JWT_SERVICE_TOKEN,
   type JwtServicePort,
@@ -143,22 +143,42 @@ export class AuthController {
   }
 
   @Get('google')
-  @Redirect()
-  startGoogle() {
-    return {
-      url: this.googleOAuth.getAuthorizationUrl(),
-      statusCode: 302,
-    };
+  startGoogle(
+    @Query('mode') mode: string | undefined,
+    @Res() response: Response,
+  ) {
+    const isPopup = mode === 'popup';
+    const state = isPopup
+      ? Buffer.from(
+          JSON.stringify({
+            mode: 'popup',
+            nonce: crypto.randomBytes(8).toString('hex'),
+          }),
+        ).toString('base64url')
+      : undefined;
+
+    const url = this.googleOAuth.getAuthorizationUrl({
+      state,
+      selectAccount: isPopup,
+    });
+    return response.redirect(302, url);
   }
 
   @Get('google/callback')
   async googleCallback(
     @Query('code') code: string | undefined,
     @Query('error') error: string | undefined,
+    @Query('state') state: string | undefined,
     @Res() response: Response,
   ) {
+    const frontendURL = FRONTEND_URL || 'http://localhost:3006';
+    const popupRequest = this.parsePopupState(state);
+
     if (error || !code) {
-      return response.redirect('/login');
+      if (popupRequest) {
+        return this.sendPopupResult(response, { error: 'google_auth_failed' });
+      }
+      return response.redirect(`${frontendURL}/login?error=google_auth_failed`);
     }
 
     let result: {
@@ -168,7 +188,10 @@ export class AuthController {
     try {
       result = await this.handleGoogleLogin.execute(code);
     } catch {
-      return response.redirect('/login');
+      if (popupRequest) {
+        return this.sendPopupResult(response, { error: 'google_auth_failed' });
+      }
+      return response.redirect(`${frontendURL}/login?error=google_auth_failed`);
     }
 
     try {
@@ -180,7 +203,13 @@ export class AuthController {
         },
         '7d',
       );
-      const frontendURL = FRONTEND_URL || 'http://localhost:3000';
+
+      if (popupRequest) {
+        return this.sendPopupResult(response, {
+          token,
+          needsCompletion: result.needsCompletion,
+        });
+      }
 
       if (result.needsCompletion) {
         return response.redirect(
@@ -188,12 +217,43 @@ export class AuthController {
         );
       }
 
-      return response.redirect(`${frontendURL}/dashboard?token=${token}`);
+      return response.redirect(`${frontendURL}/redirect?token=${token}`);
     } catch {
       return response
         .status(500)
         .json({ message: 'Erreur serveur dans le callback Google' });
     }
+  }
+
+  private parsePopupState(raw?: string): { mode: string } | null {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(
+        Buffer.from(raw, 'base64url').toString('utf8'),
+      ) as { mode?: string };
+      return parsed?.mode === 'popup' ? { mode: parsed.mode } : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private sendPopupResult(
+    response: Response,
+    payload: { token?: string; needsCompletion?: boolean; error?: string },
+  ) {
+    const target = FRONTEND_URL || 'http://localhost:3006';
+    const data = JSON.stringify({
+      type: 'bibocom-google-auth',
+      ...payload,
+    });
+    const html =
+      `<!doctype html><html lang="fr"><head><meta charset="utf-8">` +
+      `<title>Connexion</title></head><body>` +
+      `<script>window.opener.postMessage(${data}, ${JSON.stringify(target)});` +
+      `window.close();</scr` +
+      `ipt></body></html>`;
+
+    return response.type('html').send(html);
   }
 
   @Put('profile1')
