@@ -66,6 +66,7 @@ export class GetMerchantOrdersUseCase {
           grouped[orderId] = {
             id: orderId,
             status: item.order.status,
+            clientId: item.order.clientId,
             client: item.order.client,
             createdAt: item.order.createdAt,
             totalAmount: 0,

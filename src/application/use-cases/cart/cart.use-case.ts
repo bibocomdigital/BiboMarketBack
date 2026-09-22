@@ -31,6 +31,10 @@ function totalPrice(items: { product: { price: number }; quantity: number }[]) {
   );
 }
 
+function formatFcfa(amount: number) {
+  return `${Math.round(Number(amount) || 0).toLocaleString('fr-FR')} FCFA`;
+}
+
 function groupItemsByShop(items: any[]) {
   const shopItems: Record<
     string,
@@ -296,26 +300,27 @@ export class ShareCartUseCase {
         const shop = shopItems[merchantId];
         const shopTotal = shop.items.reduce((sum, item) => sum + item.total, 0);
 
-        let messageContent = `🛒 **Demande de panier** de ${cart.user.firstName} ${cart.user.lastName}\n\n`;
-        messageContent += `Bonjour ! Je souhaite commander les articles suivants de votre boutique "${shop.shopName}" :\n\n`;
+        let messageContent = `🛒 **Demande de panier**\n`;
+        messageContent += `${cart.user.firstName} ${cart.user.lastName}\n\n`;
+        messageContent += `Bonjour, je souhaite commander ces articles de « ${shop.shopName} » :\n\n`;
 
         shop.items.forEach((item, index) => {
           messageContent += `${index + 1}. **${item.name}**\n`;
-          messageContent += `   - Quantité: ${item.quantity}\n`;
-          messageContent += `   - Prix unitaire: ${item.price.toLocaleString()} FCFA\n`;
-          messageContent += `   - Total: ${item.total.toLocaleString()} FCFA\n\n`;
+          messageContent += `   • Quantité : ${item.quantity}\n`;
+          messageContent += `   • Prix unitaire : ${formatFcfa(item.price)}\n`;
+          messageContent += `   • Total : ${formatFcfa(item.total)}\n\n`;
         });
 
-        messageContent += `**TOTAL: ${shopTotal.toLocaleString()} FCFA**\n\n`;
+        messageContent += `**Total : ${formatFcfa(shopTotal)}**\n\n`;
         if (message) {
-          messageContent += `Message: ${message}\n\n`;
+          messageContent += `Message : ${message}\n\n`;
         }
-        messageContent += `Mes coordonnées:\n`;
-        messageContent += `📱 Téléphone: ${cart.user.phoneNumber}\n`;
+        messageContent += `Mes coordonnées\n`;
+        messageContent += `📱 ${cart.user.phoneNumber || 'Non renseigné'}\n`;
         if (cart.user.email) {
-          messageContent += `📧 Email: ${cart.user.email}\n`;
+          messageContent += `📧 ${cart.user.email}\n`;
         }
-        messageContent += `\nMerci de me confirmer la disponibilité et les modalités !`;
+        messageContent += `\nMerci de confirmer la disponibilité et les modalités.`;
 
         try {
           const sentMessage = await this.carts.createMessage({
@@ -429,29 +434,29 @@ export class CreateOrderFromCartUseCase {
         const shop = shopItems[merchantId];
         const shopTotal = shop.items.reduce((sum, item) => sum + item.total, 0);
 
-        let messageContent = `🎉 **NOUVELLE COMMANDE #${order.id}**\n\n`;
-        messageContent += `Bonjour ! J'ai passé la commande #${order.id} sur Bibocom Market.\n\n`;
-        messageContent += `**Articles commandés de "${shop.shopName}" :**\n\n`;
+        let messageContent = `🎉 **Nouvelle commande n° ${order.id}**\n\n`;
+        messageContent += `Bonjour, j'ai passé la commande n° ${order.id} sur Bibocom Market.\n\n`;
+        messageContent += `**Articles — ${shop.shopName}**\n\n`;
 
         shop.items.forEach((item, index) => {
           messageContent += `${index + 1}. **${item.name}**\n`;
-          messageContent += `   - Quantité: ${item.quantity}\n`;
-          messageContent += `   - Prix: ${item.price.toLocaleString()} FCFA\n`;
-          messageContent += `   - Total: ${item.total.toLocaleString()} FCFA\n\n`;
+          messageContent += `   • Quantité : ${item.quantity}\n`;
+          messageContent += `   • Prix : ${formatFcfa(item.price)}\n`;
+          messageContent += `   • Total : ${formatFcfa(item.total)}\n\n`;
         });
 
-        messageContent += `**TOTAL: ${shopTotal.toLocaleString()} FCFA**\n\n`;
+        messageContent += `**Total : ${formatFcfa(shopTotal)}**\n\n`;
         if (message) {
-          messageContent += `Message: ${message}\n\n`;
+          messageContent += `Message : ${message}\n\n`;
         }
-        messageContent += `**Mes coordonnées:**\n`;
-        messageContent += `📱 ${cart.user.phoneNumber}\n`;
+        messageContent += `**Mes coordonnées**\n`;
+        messageContent += `📱 ${cart.user.phoneNumber || 'Non renseigné'}\n`;
         if (cart.user.email) {
           messageContent += `📧 ${cart.user.email}\n`;
         }
-        messageContent += `\n**Référence:** #${order.id}\n`;
-        messageContent += `**Date:** ${new Date().toLocaleDateString('fr-FR')}\n\n`;
-        messageContent += `Merci de confirmer la commande et m'indiquer les modalités de livraison !`;
+        messageContent += `\nRéférence : n° ${order.id}\n`;
+        messageContent += `Date : ${new Date().toLocaleDateString('fr-FR')}\n\n`;
+        messageContent += `Merci de confirmer la commande et les modalités de livraison.`;
 
         try {
           const sentMessage = await this.carts.createMessage({

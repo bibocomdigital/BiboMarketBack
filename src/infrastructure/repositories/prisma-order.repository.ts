@@ -237,6 +237,7 @@ export class PrismaOrderRepository implements OrderRepository {
           include: {
             client: {
               select: {
+                id: true,
                 firstName: true,
                 lastName: true,
                 phoneNumber: true,

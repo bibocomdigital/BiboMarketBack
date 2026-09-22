@@ -357,6 +357,13 @@ export class PrismaProductRepository implements ProductRepository {
         where.price.lte = filter.maxPrice;
       }
     }
+    const term = filter.search?.trim();
+    if (term) {
+      where.OR = [
+        { name: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+      ];
+    }
     return where;
   }
 

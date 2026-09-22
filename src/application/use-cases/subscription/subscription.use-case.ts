@@ -70,15 +70,19 @@ export class ToggleFollowUseCase {
 
         await this.subscriptions.createSubscription(followerId, parsedUserId);
 
-        await this.notifications.create({
-          userId: parsedUserId,
-          type: 'FOLLOW',
-          message: `${follower!.firstName} ${follower!.lastName} a commencé à vous suivre. Vous pouvez également le suivre en retour.`,
-          actionUrl: `/profil/${followerId}`,
-          resourceId: followerId,
-          resourceType: 'User',
-          priority: 2,
-        });
+        try {
+          await this.notifications.create({
+            userId: parsedUserId,
+            type: 'FOLLOW',
+            message: `${follower!.firstName} ${follower!.lastName} a commencé à vous suivre. Vous pouvez également le suivre en retour.`,
+            actionUrl: `/profil/${followerId}`,
+            resourceId: followerId,
+            resourceType: 'User',
+            priority: 2,
+          });
+        } catch {
+          // L'abonnement est déjà créé : ne pas échouer pour une notification.
+        }
 
         message = 'Vous suivez maintenant cet utilisateur';
         action = 'followed';

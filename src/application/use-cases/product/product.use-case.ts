@@ -111,17 +111,17 @@ function formatListedProduct(product: any, userId?: number) {
     shopId: product.shopId,
     userId: product.userId,
     status: product.status,
-    likesCount: product.likesCount,
-    commentsCount: product.commentsCount,
-    sharesCount: product.sharesCount,
+    likesCount: Math.max(0, product.likesCount ?? 0),
+    commentsCount: Math.max(0, product.commentsCount ?? 0),
+    sharesCount: Math.max(0, product.sharesCount ?? 0),
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
     images: product.images,
     shop: product.shop,
     _count: {
-      likes: product.likesCount,
-      comments: product.commentsCount,
-      shares: product.sharesCount,
+      likes: Math.max(0, product.likesCount ?? 0),
+      comments: Math.max(0, product.commentsCount ?? 0),
+      shares: Math.max(0, product.sharesCount ?? 0),
     },
     isLiked,
   };
@@ -328,6 +328,7 @@ export class ListProductsUseCase {
       const limit = parseInt(queryValue(query, 'limit') ?? '10', 10) || 10;
       const status = queryValue(query, 'status') ?? 'PUBLISHED';
       const category = queryValue(query, 'category');
+      const search = queryValue(query, 'search');
       const minPrice = queryValue(query, 'minPrice');
       const maxPrice = queryValue(query, 'maxPrice');
       const sortBy = queryValue(query, 'sortBy');
@@ -343,6 +344,7 @@ export class ListProductsUseCase {
           order: order?.toLowerCase() === 'desc' ? 'desc' : 'asc',
           page,
           limit,
+          search: search?.trim() || undefined,
         },
         userId,
       );

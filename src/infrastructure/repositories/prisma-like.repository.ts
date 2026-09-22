@@ -57,8 +57,8 @@ export class PrismaLikeRepository implements LikeRepository {
   }
 
   async decrementLikesCount(productId: number): Promise<void> {
-    await this.prisma.product.update({
-      where: { id: productId },
+    await this.prisma.product.updateMany({
+      where: { id: productId, likesCount: { gt: 0 } },
       data: { likesCount: { decrement: 1 } },
     });
   }

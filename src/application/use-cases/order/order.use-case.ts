@@ -16,6 +16,8 @@ export const orderMessages = {
     invalidStatus: 'Statut de commande invalide',
     notAuthorized:
       "Vous n'êtes pas autorisé à effectuer cette action sur cette commande",
+    invalidTransition:
+      "Cette action n'est plus possible pour cette commande",
     onlyCanceledCanBeDeleted:
       'Seules les commandes annulées peuvent être supprimées définitivement',
     notAuthorizedDelete: "Vous n'êtes pas autorisé à supprimer cette commande",
@@ -43,21 +45,21 @@ export const orderMessages = {
   statusMessages: {
     CONFIRMED: {
       client: (firstName: string, orderId: string | number) =>
-        `🎉 Félicitations ${firstName} ! Le commerçant vient de confirmer votre commande #COMANDE-${orderId}. Préparez-vous à recevoir vos articles bientôt !`,
+        `${firstName}, le commerçant a confirmé votre commande n° ${orderId}.`,
       merchant: (firstName: string, lastName: string, orderId: string | number) =>
-        `✅ Parfait ! Vous avez confirmé la commande #COMANDE-${orderId} de ${firstName} ${lastName}.`,
+        `Vous avez confirmé la commande n° ${orderId} de ${firstName} ${lastName}.`,
     },
     SHIPPED: {
       client: (firstName: string, orderId: string | number) =>
-        `🚚 Excellente nouvelle ${firstName} ! Votre commande #COMANDE-${orderId} est maintenant en route vers vous !`,
+        `${firstName}, votre commande n° ${orderId} est en cours de livraison.`,
       merchant: (orderId: string | number) =>
-        `📦 Commande #COMANDE-${orderId} marquée comme expédiée avec succès !`,
+        `La commande n° ${orderId} a été marquée comme expédiée.`,
     },
     CANCELED: {
       client: (orderId: string | number) =>
-        `❌ Votre commande #COMANDE-${orderId} a été annulée par le commerçant.`,
+        `Votre commande n° ${orderId} a été annulée par le commerçant.`,
       merchant: (orderId: string | number) =>
-        `❌ Vous avez annulé la commande #COMANDE-${orderId}.`,
+        `Vous avez annulé la commande n° ${orderId}.`,
     },
   },
 };
@@ -194,9 +196,17 @@ export class UpdateOrderStatusUseCase {
         const isMerchantOrder = order.orderItems.some(
           (item: any) => item.product.shop.userId === userId,
         );
-        if (isMerchantOrder) {
+        const allowedNext: Record<string, string[]> = {
+          PENDING: ['CONFIRMED', 'CANCELED'],
+          CONFIRMED: ['SHIPPED', 'CANCELED'],
+        };
+        if (isMerchantOrder && (allowedNext[order.status] ?? []).includes(status)) {
           isAuthorized = true;
           actorType = 'MERCHANT';
+        } else if (isMerchantOrder) {
+          throw ExpressContractException.raw(400, {
+            message: orderMessages.errors.invalidTransition,
+          });
         }
       }
 
@@ -224,7 +234,7 @@ export class UpdateOrderStatusUseCase {
         await this.notifications.create({
           userId: order.client.id,
           type: 'ORDER',
-          message: `❌ Vous avez annulé votre commande #COMANDE-${orderId}. Nous espérons vous revoir bientôt !`,
+          message: `Vous avez annulé votre commande n° ${orderId}.`,
           actionUrl: `/commandes/${orderId}`,
           resourceId: orderId,
           resourceType: 'Order',
@@ -234,7 +244,7 @@ export class UpdateOrderStatusUseCase {
           await this.notifications.create({
             userId: merchantId,
             type: 'ORDER',
-            message: `❌ Le client ${order.client.firstName} ${order.client.lastName} a annulé la commande #COMANDE-${orderId}.`,
+            message: `${order.client.firstName} ${order.client.lastName} a annulé la commande n° ${orderId}.`,
             actionUrl: `/commandes-recues`,
             resourceId: orderId,
             resourceType: 'Order',
@@ -245,7 +255,7 @@ export class UpdateOrderStatusUseCase {
         await this.notifications.create({
           userId: order.client.id,
           type: 'ORDER',
-          message: `✅ Merci ${order.client.firstName} ! Vous avez confirmé la réception de votre commande #COMANDE-${orderId}. N'hésitez pas à laisser un avis !`,
+          message: `Vous avez confirmé la réception de votre commande n° ${orderId}.`,
           actionUrl: `/commandes/${orderId}`,
           resourceId: orderId,
           resourceType: 'Order',
@@ -255,7 +265,7 @@ export class UpdateOrderStatusUseCase {
           await this.notifications.create({
             userId: merchantId,
             type: 'ORDER',
-            message: `🎉 Excellent ! ${order.client.firstName} ${order.client.lastName} a confirmé avoir reçu la commande #COMANDE-${orderId}.`,
+            message: `${order.client.firstName} ${order.client.lastName} a confirmé la réception de la commande n° ${orderId}.`,
             actionUrl: `/commandes-recues`,
             resourceId: orderId,
             resourceType: 'Order',
@@ -356,7 +366,7 @@ export class DeleteOrderUseCase {
         await this.notifications.create({
           userId,
           type: 'SYSTEM',
-          message: `🗑️ Votre commande annulée #COMANDE-${orderId} a été supprimée définitivement.`,
+          message: `Votre commande annulée n° ${orderId} a été supprimée.`,
           priority: 1,
         });
       }
