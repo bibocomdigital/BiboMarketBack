@@ -6,6 +6,7 @@ export interface GoogleProfile {
   name?: { givenName?: string; familyName?: string };
   emails?: { value: string }[];
   photos?: { value: string }[];
+  emailVerified?: boolean;
 }
 
 export interface GoogleOAuthUrlOptions {
@@ -16,4 +17,5 @@ export interface GoogleOAuthUrlOptions {
 export interface GoogleOAuthPort {
   getAuthorizationUrl(options?: GoogleOAuthUrlOptions): string;
   fetchProfile(code: string): Promise<GoogleProfile>;
+  verifyIdToken(idToken: string): Promise<GoogleProfile>;
 }

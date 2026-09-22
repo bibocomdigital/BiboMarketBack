@@ -4,10 +4,8 @@ import {
   Delete,
   Get,
   HttpCode,
-  Inject,
   Post,
   Put,
-  Query,
   Req,
   Res,
   UploadedFile,
@@ -49,16 +47,6 @@ import {
   UpdateConnectedProfileUseCase,
   UploadUserProfilePhotoUseCase,
 } from '@application/use-cases/user/user.use-case';
-import { FRONTEND_URL } from '@application/config/env';
-import * as crypto from 'crypto';
-import {
-  JWT_SERVICE_TOKEN,
-  type JwtServicePort,
-} from '@application/ports/output/jwt-service.port';
-import {
-  GOOGLE_OAUTH,
-  type GoogleOAuthPort,
-} from '@application/ports/output/google-oauth.port';
 import { ExpressContractFilter } from '@interface/filters/express-contract.filter';
 import {
   ExpressAdminGuard,
@@ -109,8 +97,6 @@ export class AuthController {
     private readonly handleGoogleLogin: HandleGoogleLoginUseCase,
     private readonly updateConnectedProfile: UpdateConnectedProfileUseCase,
     private readonly uploadUserProfilePhoto: UploadUserProfilePhotoUseCase,
-    @Inject(GOOGLE_OAUTH) private readonly googleOAuth: GoogleOAuthPort,
-    @Inject(JWT_SERVICE_TOKEN) private readonly jwtService: JwtServicePort,
   ) {}
 
   @Post('register')
@@ -142,118 +128,27 @@ export class AuthController {
     return this.loginUser.execute(body);
   }
 
-  @Get('google')
-  startGoogle(
-    @Query('mode') mode: string | undefined,
-    @Res() response: Response,
-  ) {
-    const isPopup = mode === 'popup';
-    const state = isPopup
-      ? Buffer.from(
-          JSON.stringify({
-            mode: 'popup',
-            nonce: crypto.randomBytes(8).toString('hex'),
-          }),
-        ).toString('base64url')
-      : undefined;
+  /** GIS : le front envoie l'ID token Google, pas un code OAuth. */
+  @Post('google-login')
+  @HttpCode(200)
+  googleLogin(@Body() body: { idToken?: string }) {
+    return this.handleGoogleLogin.execute({ idToken: body.idToken });
+  }
 
-    const url = this.googleOAuth.getAuthorizationUrl({
-      state,
-      selectAccount: isPopup,
+  @Get('google')
+  startGoogle(@Res() response: Response) {
+    return response.status(410).json({
+      message:
+        'Flux OAuth redirect obsolète. Utilisez POST /auth/google-login avec un idToken.',
     });
-    return response.redirect(302, url);
   }
 
   @Get('google/callback')
-  async googleCallback(
-    @Query('code') code: string | undefined,
-    @Query('error') error: string | undefined,
-    @Query('state') state: string | undefined,
-    @Res() response: Response,
-  ) {
-    const frontendURL = FRONTEND_URL || 'http://localhost:3006';
-    const popupRequest = this.parsePopupState(state);
-
-    if (error || !code) {
-      if (popupRequest) {
-        return this.sendPopupResult(response, { error: 'google_auth_failed' });
-      }
-      return response.redirect(`${frontendURL}/login?error=google_auth_failed`);
-    }
-
-    let result: {
-      user: { id: number; email: string | null };
-      needsCompletion: boolean;
-    };
-    try {
-      result = await this.handleGoogleLogin.execute(code);
-    } catch {
-      if (popupRequest) {
-        return this.sendPopupResult(response, { error: 'google_auth_failed' });
-      }
-      return response.redirect(`${frontendURL}/login?error=google_auth_failed`);
-    }
-
-    try {
-      const token = await this.jwtService.signPayload(
-        {
-          userId: result.user.id,
-          email: result.user.email,
-          needsCompletion: result.needsCompletion,
-        },
-        '7d',
-      );
-
-      if (popupRequest) {
-        return this.sendPopupResult(response, {
-          token,
-          needsCompletion: result.needsCompletion,
-        });
-      }
-
-      if (result.needsCompletion) {
-        return response.redirect(
-          `${frontendURL}/complete-profile?token=${token}`,
-        );
-      }
-
-      return response.redirect(`${frontendURL}/redirect?token=${token}`);
-    } catch {
-      return response
-        .status(500)
-        .json({ message: 'Erreur serveur dans le callback Google' });
-    }
-  }
-
-  private parsePopupState(raw?: string): { mode: string } | null {
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(
-        Buffer.from(raw, 'base64url').toString('utf8'),
-      ) as { mode?: string };
-      return parsed?.mode === 'popup' ? { mode: parsed.mode } : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private sendPopupResult(
-    response: Response,
-    payload: { token?: string; needsCompletion?: boolean; error?: string },
-  ) {
-    const target = FRONTEND_URL || 'http://localhost:3006';
-    const data = JSON.stringify({
-      type: 'bibocom-google-auth',
-      ...payload,
+  googleCallback(@Res() response: Response) {
+    return response.status(410).json({
+      message:
+        'Flux OAuth redirect obsolète. Utilisez POST /auth/google-login avec un idToken.',
     });
-    const html =
-      `<!doctype html><html lang="fr"><head><meta charset="utf-8">` +
-      `<title>Connexion</title></head><body>` +
-      `<script>window.opener.postMessage(${data}, ${JSON.stringify(target)});` +
-      `window.close();</scr` +
-      `ipt></body></html>`;
-
-    return response.type('html').send(html);
   }
 
   @Put('profile1')
@@ -341,6 +236,7 @@ export class AuthController {
       city?: string;
       department?: string;
       commune?: string;
+      role?: string;
     },
     @UploadedFile() file?: { path: string },
   ) {

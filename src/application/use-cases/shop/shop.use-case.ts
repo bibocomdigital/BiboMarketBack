@@ -330,7 +330,7 @@ export class GetShopProductsUseCase {
         : undefined;
       const sortBy = queryValue(query, 'sortBy');
       const order = queryValue(query, 'order') === 'asc' ? 'asc' : 'desc';
-      const status = queryValue(query, 'status');
+      const status = queryValue(query, 'status') ?? 'PUBLISHED';
 
       const { products, total } = await this.shops.findFilteredProducts({
         shopId,

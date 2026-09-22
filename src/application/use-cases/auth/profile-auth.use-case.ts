@@ -13,6 +13,7 @@ import {
   type FileStoragePort,
 } from '@application/ports/output/file-storage.port';
 import { NODE_ENV } from '@application/config/env';
+import { Role } from '@domain/types/role';
 
 @Injectable()
 export class GetUserProfileUseCase {
@@ -281,6 +282,7 @@ export class UpdateUserProfileUseCase {
       city?: string;
       department?: string;
       commune?: string;
+      role?: string;
     },
     filePath?: string,
   ) {
@@ -333,6 +335,7 @@ export class UpdateUserProfileUseCase {
       city,
       department,
       commune,
+      role,
     } = input;
 
     if (firstName !== undefined && firstName !== '')
@@ -348,7 +351,18 @@ export class UpdateUserProfileUseCase {
       dataToUpdate.department = department;
     }
     if (commune !== undefined && commune !== '') dataToUpdate.commune = commune;
+    if (
+      role &&
+      (role === Role.CLIENT ||
+        role === Role.MERCHANT ||
+        role === Role.SUPPLIER)
+    ) {
+      dataToUpdate.role = role;
+    }
     if (photoUrl) dataToUpdate.photo = photoUrl;
+    if (firstName || lastName || phoneNumber) {
+      dataToUpdate.isProfileCompleted = true;
+    }
 
     try {
       const updatedUser = await this.users.update(userId, dataToUpdate);

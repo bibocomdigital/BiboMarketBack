@@ -1,8 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { OAuth2Client } from 'google-auth-library';
 import {
   GOOGLE_CLIENT_ID,
   GOOGLE_CLIENT_SECRET,
   GOOGLE_CALLBACK_URL as GOOGLE_CALLBACK_URL_ENV,
+  getGoogleClientIds,
 } from '@application/config/env';
 import type {
   GoogleOAuthPort,
@@ -17,6 +19,39 @@ export const GOOGLE_CALLBACK_URL =
 
 @Injectable()
 export class GoogleOAuthHttpAdapter implements GoogleOAuthPort {
+  private readonly oauthClient = new OAuth2Client();
+
+  async verifyIdToken(idToken: string): Promise<GoogleProfile> {
+    const audiences = getGoogleClientIds();
+    if (!idToken?.trim()) {
+      throw new Error('Google ID token manquant');
+    }
+    if (!audiences.length) {
+      throw new Error('Aucun client ID Google configuré');
+    }
+
+    const ticket = await this.oauthClient.verifyIdToken({
+      idToken,
+      audience: audiences,
+    });
+    const payload = ticket.getPayload();
+    if (!payload?.sub) {
+      throw new Error('Jeton Google invalide');
+    }
+
+    return {
+      id: payload.sub,
+      displayName: payload.name,
+      name: {
+        givenName: payload.given_name,
+        familyName: payload.family_name,
+      },
+      emails: payload.email ? [{ value: payload.email }] : [],
+      photos: payload.picture ? [{ value: payload.picture }] : [],
+      emailVerified: payload.email_verified === true,
+    };
+  }
+
   getAuthorizationUrl(options: GoogleOAuthUrlOptions = {}): string {
     const params = new URLSearchParams({
       client_id: GOOGLE_CLIENT_ID ?? '',
