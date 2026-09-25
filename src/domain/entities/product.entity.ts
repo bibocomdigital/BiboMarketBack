@@ -3,6 +3,7 @@ export interface Product {
   name: string;
   description: string | null;
   price: number;
+  promoPrice?: number | null;
   stock: number;
   videoUrl: string | null;
   status: string;

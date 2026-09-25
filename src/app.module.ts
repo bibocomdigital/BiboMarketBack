@@ -17,6 +17,8 @@ import { NotificationModule } from './interface/modules/notification.module';
 import { MessageModule } from './interface/modules/message.module';
 import { RealtimeModule } from './interface/modules/realtime.module';
 import { AdminModule } from './interface/modules/admin.module';
+import { BadgeModule } from './interface/modules/badge.module';
+import { PlatformModule } from './interface/modules/platform.module';
 
 @Module({
   imports: [
@@ -36,6 +38,8 @@ import { AdminModule } from './interface/modules/admin.module';
     NotificationModule,
     MessageModule,
     AdminModule,
+    BadgeModule,
+    PlatformModule,
   ],
   controllers: [AppController],
   providers: [AppService],

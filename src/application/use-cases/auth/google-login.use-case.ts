@@ -10,7 +10,7 @@ import {
   type UserRepository,
 } from '@domain/repositories/user.repository';
 import type { User } from '@domain/entities/user.entity';
-import { Role } from '@domain/types/role';
+import { isDesignatedSuperAdminPhone, Role } from '@domain/types/role';
 import {
   GOOGLE_OAUTH,
   type GoogleOAuthPort,
@@ -74,10 +74,14 @@ export class HandleGoogleLoginUseCase {
     }
 
     const user = await this.findOrCreateUser(profile, email);
+    const role = isDesignatedSuperAdminPhone(user.phoneNumber)
+      ? Role.SUPER_ADMIN
+      : user.role;
     await this.users.update(user.id, {
       lastLogin: new Date(),
       lastActive: new Date(),
       isOnline: true,
+      ...(role !== user.role ? { role } : {}),
     });
 
     const tokens = await this.jwtService.generateToken({
@@ -85,7 +89,7 @@ export class HandleGoogleLoginUseCase {
       userId: user.id,
       phoneNumber: user.phoneNumber ?? undefined,
       email: user.email,
-      role: user.role as Role,
+      role: role as Role,
     });
 
     const needsCompletion = needsProfileCompletion(user);
@@ -106,7 +110,7 @@ export class HandleGoogleLoginUseCase {
         firstName: user.firstName,
         lastName: user.lastName,
         photo: user.photo,
-        role: user.role,
+        role,
         country: user.country,
         city: user.city,
         phoneVerified: user.phoneVerified,

@@ -36,6 +36,7 @@ import {
   type ProductMediaFiles,
   type ProductQuery,
 } from '@application/use-cases/product/product.use-case';
+import { StockMovementUseCase } from '@application/use-cases/product/stock-movement.use-case';
 import { ExpressContractFilter } from '@interface/filters/express-contract.filter';
 import { ProductUploadFilter } from '@interface/filters/product-upload.filter';
 import {
@@ -76,6 +77,7 @@ export class ProductController {
     private readonly updateProductWithImages: UpdateProductWithImagesUseCase,
     private readonly updateProduct: UpdateProductUseCase,
     private readonly updateProductStock: UpdateProductStockUseCase,
+    private readonly stockMovements: StockMovementUseCase,
     private readonly updateProductStatus: UpdateProductStatusUseCase,
     private readonly deleteProduct: DeleteProductUseCase,
   ) {}
@@ -129,6 +131,18 @@ export class ProductController {
     return this.getMerchantProducts.execute(parseInt(merchantId, 10), query);
   }
 
+  @Get('mouvements')
+  @UseGuards(UsersAuthGuard, UsersMerchantGuard)
+  movements(@Req() request: Request) {
+    return this.stockMovements.listMovements(currentUserId(request));
+  }
+
+  @Get('comptoir')
+  @UseGuards(UsersAuthGuard, UsersMerchantGuard)
+  counter(@Req() request: Request) {
+    return this.stockMovements.listCounterSales(currentUserId(request));
+  }
+
   @Get('stats')
   @UseGuards(UsersAuthGuard, UsersMerchantGuard)
   stats(@Req() request: Request) {
@@ -157,6 +171,7 @@ export class ProductController {
       name?: string;
       description?: string;
       price?: string | number;
+      promoPrice?: string | number | null;
       stock?: string | number;
       videoUrl?: string;
       categorieProdId?: string | number;
@@ -176,6 +191,7 @@ export class ProductController {
       name?: string;
       description?: string;
       price?: string | number;
+      promoPrice?: string | number | null;
       stock?: string | number;
       videoUrl?: string;
       categorieProdId?: string | number;
@@ -197,6 +213,7 @@ export class ProductController {
       description?: string;
       categorieProdId?: string | number;
       price?: string | number;
+      promoPrice?: string | number | null;
       stock?: string | number;
       videoUrl?: string;
       existingImageUrls?: string;
@@ -222,6 +239,7 @@ export class ProductController {
       name?: string;
       description?: string;
       price?: string | number;
+      promoPrice?: string | number | null;
       stock?: string | number;
       videoUrl?: string;
       categorieProdId?: string | number;
@@ -242,6 +260,22 @@ export class ProductController {
       parseInt(id, 10),
       currentUserId(request),
       body.status,
+    );
+  }
+
+  @Post(':id/mouvement')
+  @UseGuards(UsersAuthGuard, UsersMerchantGuard)
+  adjustStock(
+    @Req() request: Request,
+    @Param('id') id: string,
+    @Body() body: { kind?: string; quantity?: number | string; note?: string },
+  ) {
+    return this.stockMovements.adjust(
+      currentUserId(request),
+      parseInt(id, 10),
+      body.kind ?? '',
+      body.quantity,
+      body.note,
     );
   }
 

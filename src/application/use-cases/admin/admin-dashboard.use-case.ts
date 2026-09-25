@@ -93,8 +93,10 @@ export class GetAdminDashboardUseCase {
         this.admin.findRecentOrders(5),
       ]);
 
-      const usersByRole = {
+      const usersByRole: Record<string, number> = {
+        SUPER_ADMIN: 0,
         ADMIN: 0,
+        MODERATOR: 0,
         MERCHANT: 0,
         CLIENT: 0,
         SUPPLIER: 0,

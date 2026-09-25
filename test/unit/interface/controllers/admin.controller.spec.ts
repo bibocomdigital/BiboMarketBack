@@ -73,7 +73,9 @@ describe('AdminController', () => {
   it('délègue le dashboard avec months et lowStockThreshold', async () => {
     getDashboard.execute.mockResolvedValue({ kpis: { totalUsers: 3 } });
 
-    await expect(controller.dashboard('12', '10')).resolves.toEqual({
+    const actor = { user: { role: 'ADMIN' } } as never;
+
+    await expect(controller.dashboard(actor, '12', '10')).resolves.toEqual({
       kpis: { totalUsers: 3 },
     });
     expect(getDashboard.execute).toHaveBeenCalledWith('12', '10');
@@ -82,14 +84,18 @@ describe('AdminController', () => {
   it('délègue la vérification d’une boutique', async () => {
     updateShop.execute.mockResolvedValue({ message: 'Boutique mise à jour' });
 
-    await controller.patchShop('10', { verifiedBadge: true });
+    await controller.patchShop({ user: { role: 'ADMIN' } } as never, '10', {
+      verifiedBadge: true,
+    });
     expect(updateShop.execute).toHaveBeenCalledWith(10, { verifiedBadge: true });
   });
 
   it('délègue la mise à jour du statut d’une commande', async () => {
     updateOrderStatus.execute.mockResolvedValue({ message: 'ok' });
 
-    await controller.patchOrderStatus('3', { status: 'CONFIRMED' });
+    await controller.patchOrderStatus({ user: { role: 'ADMIN' } } as never, '3', {
+      status: 'CONFIRMED',
+    });
     expect(updateOrderStatus.execute).toHaveBeenCalledWith(3, 'CONFIRMED');
   });
 });

@@ -55,61 +55,85 @@ async function main() {
 
     const password = await bcrypt.hash(TEST_PASSWORD, 10);
 
-    const [admin, merchant, client] = await Promise.all([
-      prisma.user.create({
-        data: {
-          email: 'admin@bibomarket.test',
-          phoneNumber: '+221770000001',
-          password,
-          role: 'ADMIN',
-          firstName: 'Awa',
-          lastName: 'Diop',
-          isVerified: true,
-          isProfileCompleted: true,
-          profileCompletion: 100,
-          onboardingStep: 'completed',
-          city: 'Dakar',
-          country: 'Sénégal',
-          photo: TEST_IMAGE_URL,
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'merchant@bibomarket.test',
-          phoneNumber: '+221770000002',
-          whatsappNumber: '+221770000002',
-          password,
-          role: 'MERCHANT',
-          firstName: 'Mamadou',
-          lastName: 'Ndiaye',
-          isVerified: true,
-          isProfileCompleted: true,
-          profileCompletion: 100,
-          onboardingStep: 'completed',
-          city: 'Dakar',
-          country: 'Sénégal',
-          address: 'Médina, Dakar',
-          photo: TEST_IMAGE_URL,
-        },
-      }),
-      prisma.user.create({
-        data: {
-          email: 'client@bibomarket.test',
-          phoneNumber: '+221770000003',
-          password,
-          role: 'CLIENT',
-          firstName: 'Fatou',
-          lastName: 'Sarr',
-          isVerified: true,
-          isProfileCompleted: true,
-          profileCompletion: 100,
-          onboardingStep: 'completed',
-          city: 'Dakar',
-          country: 'Sénégal',
-          photo: TEST_IMAGE_URL,
-        },
-      }),
-    ]);
+    await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'SUPER_ADMIN'`);
+    await prisma.$executeRawUnsafe(`ALTER TYPE "UserRole" ADD VALUE IF NOT EXISTS 'MODERATOR'`);
+
+    const ready = {
+      password,
+      isVerified: true,
+      phoneVerified: true,
+      isProfileCompleted: true,
+      profileCompletion: 100,
+      onboardingStep: 'completed' as const,
+      city: 'Dakar',
+      department: 'Dakar',
+      commune: 'Dakar Plateau',
+      country: 'Sénégal',
+      photo: TEST_IMAGE_URL,
+    };
+
+    const superAdmin = await prisma.user.create({
+      data: {
+        ...ready,
+        email: 'superadmin@bibomarket.test',
+        phoneNumber: '+221777065468',
+        role: 'SUPER_ADMIN',
+        firstName: 'Seynabou',
+        lastName: 'Fall',
+      },
+    });
+    const admin = await prisma.user.create({
+      data: {
+        ...ready,
+        email: 'admin@bibomarket.test',
+        phoneNumber: '+221770000001',
+        role: 'ADMIN',
+        firstName: 'Awa',
+        lastName: 'Diop',
+      },
+    });
+    const moderator = await prisma.user.create({
+      data: {
+        ...ready,
+        email: 'moderateur@bibomarket.test',
+        phoneNumber: '+221770000004',
+        role: 'MODERATOR',
+        firstName: 'Ibrahima',
+        lastName: 'Ba',
+      },
+    });
+    const merchant = await prisma.user.create({
+      data: {
+        ...ready,
+        email: 'merchant@bibomarket.test',
+        phoneNumber: '+221770000002',
+        whatsappNumber: '+221770000002',
+        role: 'MERCHANT',
+        firstName: 'Mamadou',
+        lastName: 'Ndiaye',
+        address: 'Médina, Dakar',
+      },
+    });
+    const supplier = await prisma.user.create({
+      data: {
+        ...ready,
+        email: 'fournisseur@bibomarket.test',
+        phoneNumber: '+221770000005',
+        role: 'SUPPLIER',
+        firstName: 'Ousmane',
+        lastName: 'Diallo',
+      },
+    });
+    const client = await prisma.user.create({
+      data: {
+        ...ready,
+        email: 'client@bibomarket.test',
+        phoneNumber: '+221770000003',
+        role: 'CLIENT',
+        firstName: 'Fatou',
+        lastName: 'Sarr',
+      },
+    });
 
     const alimentation = await prisma.categorieShop.create({
       data: {
@@ -279,12 +303,24 @@ async function main() {
       },
     });
 
+    await prisma.service.create({
+      data: {
+        name: 'Livraison Dakar',
+        description: 'Livraison de test dans Dakar',
+        price: 1500,
+        providerId: supplier.id,
+      },
+    });
+
     console.log('Seed de test terminé.');
     console.log('');
-    console.log('Comptes (mot de passe: Password123!)');
-    console.log(`  ADMIN     ${admin.email}     ${admin.phoneNumber}`);
-    console.log(`  MERCHANT  ${merchant.email}  ${merchant.phoneNumber}`);
-    console.log(`  CLIENT    ${client.email}    ${client.phoneNumber}`);
+    console.log(`Comptes (mot de passe: ${TEST_PASSWORD})`);
+    console.log(`  SUPER_ADMIN  ${superAdmin.phoneNumber}  ${superAdmin.email}`);
+    console.log(`  ADMIN        ${admin.phoneNumber}  ${admin.email}`);
+    console.log(`  MODERATOR    ${moderator.phoneNumber}  ${moderator.email}`);
+    console.log(`  MERCHANT     ${merchant.phoneNumber}  ${merchant.email}`);
+    console.log(`  SUPPLIER     ${supplier.phoneNumber}  ${supplier.email}`);
+    console.log(`  CLIENT       ${client.phoneNumber}  ${client.email}`);
     console.log('');
     console.log(`Boutique #${shop.id} — ${shop.name}`);
     console.log(`Produits publiés: ${riz.name}, ${boubou.name}`);

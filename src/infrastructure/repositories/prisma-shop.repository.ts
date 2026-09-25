@@ -16,6 +16,11 @@ export class PrismaShopRepository implements ShopRepository {
   findByUserId(userId: number): Promise<Shop | null> {
     return this.prisma.shop.findUnique({
       where: { userId },
+      include: {
+        plan: {
+          select: { id: true, name: true, priceCfa: true, durationDays: true, maxProducts: true },
+        },
+      },
     }) as Promise<Shop | null>;
   }
 

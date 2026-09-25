@@ -71,6 +71,9 @@ model User {
   smsNotifications         Boolean                   @default(false)
   pushNotifications        Boolean                   @default(true)
   marketingEmails          Boolean                   @default(false)
+  suspended                Boolean                   @default(false)
+  twoFactorSecret          String?
+  twoFactorEnabled         Boolean                   @default(false)
   isOnline                 Boolean                   @default(false)
   lastLogin                DateTime?
   lastActive               DateTime?
@@ -95,6 +98,16 @@ model User {
   statuses                 Status[]
   subscriptions            Subscription[]            @relation("Follower")
   followers                Subscription[]            @relation("Following")
+  badgeSubscriptions       BadgeSubscription[]
+  stories                  Story[]
+  storyReports             StoryReport[]
+  warningsReceived         UserWarning[]            @relation("WarnedUser")
+  warningsIssued           UserWarning[]            @relation("WarningAuthor")
+  advertisements           Advertisement[]
+  supportTickets           SupportTicket[]
+  ticketMessages           TicketMessage[]
+  stockMovements           StockMovement[]
+  counterSales             CounterSale[]
 }
 
 model CategorieShop {
@@ -126,6 +139,9 @@ model Shop {
   feedbacks       MerchantFeedback[]
   products        Product[]
   owner           User @relation(fields: [userId], references: [id])
+  planId          Int?
+  planEndsAt      DateTime?
+  plan            ShopPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
 }
 
 model CategorieProd {
@@ -141,6 +157,7 @@ model Product {
   name            String
   description     String?
   price           Float
+  promoPrice      Float?
   stock           Int
   videoUrl        String?
   status          ProductStatus @default(DRAFT)
@@ -163,6 +180,53 @@ model Product {
   images          ProductImage[]
   likes           ProductLike[]
   shares          ProductShare[]
+  stockMovements  StockMovement[]
+  counterSales    CounterSale[]
+}
+
+enum StockKind {
+  RECEPTION
+  COMPTOIR
+  INVENTAIRE
+  COMMANDE
+  ANNULATION
+}
+
+model StockMovement {
+  id            Int          @id @default(autoincrement())
+  productId     Int
+  userId        Int
+  kind          StockKind
+  quantity      Int
+  delta         Int
+  stockAfter    Int
+  note          String?
+  orderId       Int?
+  counterSaleId Int?         @unique
+  createdAt     DateTime     @default(now())
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id])
+  order         Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  counterSale   CounterSale? @relation(fields: [counterSaleId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([productId, createdAt])
+}
+
+model CounterSale {
+  id        Int             @id @default(autoincrement())
+  productId Int
+  userId    Int
+  quantity  Int
+  unitPrice Float
+  total     Float
+  note      String?
+  createdAt DateTime        @default(now())
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  merchant  User            @relation(fields: [userId], references: [id])
+  movement  StockMovement?
+
+  @@index([userId, createdAt])
 }
 
 model ProductComment {
@@ -226,7 +290,8 @@ model Order {
   updatedAt     DateTime           @updatedAt
   feedbacks     MerchantFeedback[]
   client        User               @relation(fields: [clientId], references: [id])
-  orderItems    OrderItem[]
+  orderItems     OrderItem[]
+  stockMovements StockMovement[]
 }
 
 model MerchantFeedback {
@@ -285,6 +350,8 @@ model Service {
   name        String
   description String?
   price       Float
+  zone        String?
+  active      Boolean  @default(true)
   providerId  Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -344,6 +411,89 @@ enum UserRole {
   CLIENT
   SUPPLIER
   ADMIN
+  SUPER_ADMIN
+  MODERATOR
+}
+
+enum BadgeStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  EXPIRED
+}
+
+enum StoryMediaType {
+  PHOTO
+  VIDEO
+}
+
+enum StoryStatus {
+  PUBLISHED
+  REJECTED
+}
+
+/// Tarif du badge, modifié uniquement par le super administrateur.
+/// priceCfa = commerçant, supplierPriceCfa = livreur.
+model BadgeSettings {
+  id                Int      @id @default(1)
+  priceCfa          Int      @default(12000)
+  supplierPriceCfa  Int      @default(8000)
+  durationDays      Int      @default(365)
+  graceDays         Int      @default(7)
+  saleOpen          Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+}
+
+/// Formule d'une boutique : plafond de produits et durée.
+model ShopPlan {
+  id           Int      @id @default(autoincrement())
+  name         String
+  priceCfa     Int
+  durationDays Int
+  maxProducts  Int
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  shops        Shop[]
+}
+
+model BadgeSubscription {
+  id            Int              @id @default(autoincrement())
+  userId        Int
+  status        BadgeStatus      @default(PENDING_PAYMENT)
+  priceCfa      Int
+  startsAt      DateTime?
+  endsAt        DateTime?
+  graceEndsAt   DateTime?
+  paydunyaToken String?          @unique
+  paidAt        DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminders     BadgeReminder[]
+}
+
+model BadgeReminder {
+  id             Int                @id @default(autoincrement())
+  subscriptionId Int
+  kind           String
+  createdAt      DateTime           @default(now())
+  subscription   BadgeSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, kind])
+}
+
+model Story {
+  id              Int            @id @default(autoincrement())
+  userId          Int
+  mediaType       StoryMediaType
+  mediaPath       String
+  durationSeconds Int?
+  status          StoryStatus    @default(PUBLISHED)
+  createdAt       DateTime       @default(now())
+  expiresAt       DateTime
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports         StoryReport[]
 }
 
 enum OnboardingStep {
@@ -401,4 +551,79 @@ enum ContactStatus {
   UNREAD
   RESPONDED
   CLOSED
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+}
+
+enum AdStatus {
+  PENDING
+  PUBLISHED
+  REJECTED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  ESCALATED
+  CLOSED
+}
+
+model StoryReport {
+  id         Int          @id @default(autoincrement())
+  storyId    Int
+  reporterId Int
+  reason     String
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  story      Story        @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  reporter   User         @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+}
+
+model UserWarning {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  authorId  Int
+  message   String
+  createdAt DateTime @default(now())
+  user      User     @relation("WarnedUser", fields: [userId], references: [id], onDelete: Cascade)
+  author    User     @relation("WarningAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+}
+
+model Advertisement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  imageUrl    String
+  linkUrl     String?
+  status      AdStatus @default(PENDING)
+  startsAt    DateTime @default(now())
+  endsAt      DateTime?
+  createdById Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+}
+
+model SupportTicket {
+  id           Int            @id @default(autoincrement())
+  userId       Int
+  subject      String
+  status       TicketStatus   @default(OPEN)
+  satisfaction Int?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     TicketMessage[]
+}
+
+model TicketMessage {
+  id        Int           @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  body      String
+  createdAt DateTime      @default(now())
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
 }

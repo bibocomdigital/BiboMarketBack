@@ -23,6 +23,8 @@ import {
   type NotificationServicePort,
 } from '@application/ports/output/notification.port';
 import { BUNNY_CDN_HOST, NODE_ENV } from '@application/config/env';
+import { PrismaService } from '@infrastructure/prisma/prisma.service';
+import { recordInventoryCorrection } from '@application/use-cases/product/stock-movement.use-case';
 
 export type ProductQuery = Record<string, string | string[] | undefined>;
 
@@ -97,6 +99,26 @@ function parseJsonArray(value: unknown): string[] {
   return [];
 }
 
+function readPromoPrice(raw: unknown, price: number): number | null {
+  if (raw === undefined || raw === null || String(raw).trim() === '') return null;
+  const promo = parseFloat(String(raw));
+  if (!Number.isFinite(promo) || promo <= 0) {
+    throw new ExpressContractException(
+      400,
+      'Le prix promo doit être un nombre positif',
+      'INVALID_PROMO_PRICE',
+    );
+  }
+  if (promo >= price) {
+    throw new ExpressContractException(
+      400,
+      'Le prix promo doit être inférieur au prix',
+      'INVALID_PROMO_PRICE',
+    );
+  }
+  return promo;
+}
+
 function formatListedProduct(product: any, userId?: number) {
   const isLiked = userId ? (product.likes?.length ?? 0) > 0 : false;
   return {
@@ -104,6 +126,7 @@ function formatListedProduct(product: any, userId?: number) {
     name: product.name,
     description: product.description,
     price: product.price,
+    promoPrice: product.promoPrice ?? null,
     stock: product.stock,
     videoUrl: product.videoUrl,
     categorieProdId: product.categorieProdId,
@@ -136,6 +159,7 @@ export class CreateProductUseCase {
     @Inject(FILE_STORAGE) private readonly fileStorage: FileStoragePort,
     @Inject(NOTIFICATION_SERVICE)
     private readonly notifications: NotificationServicePort,
+    private readonly prisma: PrismaService,
   ) {}
 
   async execute(
@@ -144,6 +168,7 @@ export class CreateProductUseCase {
       name?: string;
       description?: string;
       price?: string | number;
+      promoPrice?: string | number | null;
       stock?: string | number;
       videoUrl?: string;
       categorieProdId?: string | number;
@@ -184,6 +209,28 @@ export class CreateProductUseCase {
       const shop = await this.shops.findByUserId(userId);
       if (!shop) {
         throw new ExpressContractException(403, productErrors.noShop, 'NO_SHOP');
+      }
+
+      const shopPlan = await this.prisma.shop.findUnique({
+        where: { id: shop.id },
+        select: { planEndsAt: true, plan: { select: { name: true, maxProducts: true } } },
+      });
+      if (shopPlan?.plan) {
+        if (shopPlan.planEndsAt && shopPlan.planEndsAt.getTime() < Date.now()) {
+          throw new ExpressContractException(
+            403,
+            `La formule ${shopPlan.plan.name} est arrivée à échéance. Renouvelez-la pour ajouter un produit.`,
+            'PLAN_EXPIRED',
+          );
+        }
+        const count = await this.prisma.product.count({ where: { shopId: shop.id } });
+        if (count >= shopPlan.plan.maxProducts) {
+          throw new ExpressContractException(
+            403,
+            `La formule ${shopPlan.plan.name} autorise ${shopPlan.plan.maxProducts} produits.`,
+            'PLAN_PRODUCT_LIMIT',
+          );
+        }
       }
 
       const parsedPrice = parseFloat(String(price));
@@ -232,6 +279,7 @@ export class CreateProductUseCase {
         name: String(name).trim(),
         description: String(description).trim(),
         price: parsedPrice,
+        promoPrice: readPromoPrice(input.promoPrice, parsedPrice),
         stock: parsedStock,
         videoUrl: finalVideoUrl,
         categorieProdId: parseInt(String(categorieProdId), 10),
@@ -396,6 +444,7 @@ export class GetProductByIdUseCase {
 export class UpdateProductUseCase {
   constructor(
     @Inject(PRODUCT_REPOSITORY) private readonly products: ProductRepository,
+    private readonly prisma: PrismaService,
   ) {}
 
   async execute(
@@ -405,6 +454,7 @@ export class UpdateProductUseCase {
       name?: string;
       description?: string;
       price?: string | number;
+      promoPrice?: string | number | null;
       stock?: string | number;
       videoUrl?: string;
       categorieProdId?: string | number;
@@ -422,17 +472,30 @@ export class UpdateProductUseCase {
         });
       }
 
+      const nextPrice = input.price ? parseFloat(String(input.price)) : product.price;
+      const nextStock = input.stock ? parseInt(String(input.stock), 10) : undefined;
       await this.products.update(id, {
         name: input.name,
         description: input.description,
-        price: input.price ? parseFloat(String(input.price)) : undefined,
-        stock: input.stock ? parseInt(String(input.stock), 10) : undefined,
+        price: input.price ? nextPrice : undefined,
+        promoPrice:
+          input.promoPrice !== undefined ? readPromoPrice(input.promoPrice, nextPrice) : undefined,
+        stock: nextStock,
         videoUrl: input.videoUrl,
         categorieProdId: input.categorieProdId
           ? parseInt(String(input.categorieProdId), 10)
           : undefined,
         updatedAt: new Date(),
       });
+      if (nextStock !== undefined && !Number.isNaN(nextStock) && nextStock !== product.stock) {
+        await recordInventoryCorrection(this.prisma, {
+          productId: id,
+          userId,
+          previous: product.stock,
+          next: nextStock,
+          note: 'Correction depuis la fiche produit',
+        });
+      }
 
       const images = Array.isArray(input.images)
         ? input.images
@@ -469,6 +532,7 @@ export class UpdateProductWithImagesUseCase {
   constructor(
     @Inject(PRODUCT_REPOSITORY) private readonly products: ProductRepository,
     @Inject(FILE_STORAGE) private readonly fileStorage: FileStoragePort,
+    private readonly prisma: PrismaService,
   ) {}
 
   async execute(
@@ -479,6 +543,7 @@ export class UpdateProductWithImagesUseCase {
       description?: string;
       categorieProdId?: string | number;
       price?: string | number;
+      promoPrice?: string | number | null;
       stock?: string | number;
       videoUrl?: string;
       existingImageUrls?: string;
@@ -644,6 +709,19 @@ export class UpdateProductWithImagesUseCase {
       if (input.price !== undefined) {
         updateData.price = parsedPrice;
       }
+      if (input.promoPrice !== undefined) {
+        updateData.promoPrice = readPromoPrice(input.promoPrice, parsedPrice);
+      } else if (
+        input.price !== undefined &&
+        existingProduct.promoPrice != null &&
+        existingProduct.promoPrice >= parsedPrice
+      ) {
+        throw new ExpressContractException(
+          400,
+          'Le prix promo doit rester inférieur au prix',
+          'INVALID_PROMO_PRICE',
+        );
+      }
       if (input.stock !== undefined) {
         updateData.stock = parsedStock;
       }
@@ -653,6 +731,15 @@ export class UpdateProductWithImagesUseCase {
 
       try {
         await this.products.update(id, updateData);
+        if (input.stock !== undefined && parsedStock !== existingProduct.stock) {
+          await recordInventoryCorrection(this.prisma, {
+            productId: id,
+            userId,
+            previous: existingProduct.stock,
+            next: parsedStock,
+            note: 'Correction depuis la fiche produit',
+          });
+        }
         const updatedProduct = await this.products.findUpdatedView(id);
         const response: Record<string, unknown> = {
           status: 'success',
@@ -765,6 +852,7 @@ export class DeleteProductUseCase {
 export class UpdateProductStockUseCase {
   constructor(
     @Inject(PRODUCT_REPOSITORY) private readonly products: ProductRepository,
+    private readonly prisma: PrismaService,
   ) {}
 
   async execute(id: number, userId: number, stock: number | string | undefined) {
@@ -783,10 +871,20 @@ export class UpdateProductStockUseCase {
           message: 'Veuillez fournir une valeur de stock valide',
         });
       }
+      const nextStock = parseInt(String(stock), 10);
       const updatedProduct = await this.products.update(id, {
-        stock: parseInt(String(stock), 10),
+        stock: nextStock,
         updatedAt: new Date(),
       });
+      if (!Number.isNaN(nextStock) && nextStock !== product.stock) {
+        await recordInventoryCorrection(this.prisma, {
+          productId: id,
+          userId,
+          previous: product.stock,
+          next: nextStock,
+          note: 'Correction de stock',
+        });
+      }
       return {
         message: 'Stock du produit mis à jour avec succès',
         product: updatedProduct,

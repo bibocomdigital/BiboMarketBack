@@ -12,6 +12,7 @@ import {
   REALTIME_GATEWAY,
   type RealtimePort,
 } from '@application/ports/output/realtime.port';
+import { chargedPrice } from '@domain/pricing/charged-price';
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -24,9 +25,11 @@ function raw500(message: string, error: unknown) {
   });
 }
 
-function totalPrice(items: { product: { price: number }; quantity: number }[]) {
+function totalPrice(
+  items: { product: { price: number; promoPrice?: number | null }; quantity: number }[],
+) {
   return items.reduce(
-    (total, item) => total + item.product.price * item.quantity,
+    (total, item) => total + chargedPrice(item.product.price, item.product.promoPrice) * item.quantity,
     0,
   );
 }
@@ -64,11 +67,12 @@ function groupItemsByShop(items: any[]) {
         items: [],
       };
     }
+    const unit = chargedPrice(item.product.price, item.product.promoPrice);
     shopItems[merchantId].items.push({
       name: item.product.name,
-      price: item.product.price,
+      price: unit,
       quantity: item.quantity,
-      total: item.product.price * item.quantity,
+      total: unit * item.quantity,
       imageUrl: item.product.images?.[0]?.imageUrl,
     });
   }
@@ -423,7 +427,7 @@ export class CreateOrderFromCartUseCase {
         items: cart.items.map((item: any) => ({
           productId: item.product.id,
           quantity: item.quantity,
-          price: item.product.price,
+          price: chargedPrice(item.product.price, item.product.promoPrice),
         })),
       });
 

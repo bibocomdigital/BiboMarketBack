@@ -2,8 +2,11 @@ import { Module } from '@nestjs/common';
 import { ADMIN_REPOSITORY } from '@domain/repositories/admin.repository';
 import { USER_REPOSITORY } from '@domain/repositories/user.repository';
 import { NOTIFICATION_SERVICE } from '@application/ports/output/notification.port';
+import { PASSWORD_HASHER } from '@application/ports/output/password-hasher.port';
+import { SMS_SERVICE } from '@application/ports/output/sms-service.port';
 import { GetAdminDashboardUseCase } from '@application/use-cases/admin/admin-dashboard.use-case';
 import {
+  CreateAdminUserUseCase,
   DeleteAdminUserUseCase,
   GetAdminUserUseCase,
   ListAdminUsersUseCase,
@@ -30,6 +33,8 @@ import {
 import { PrismaAdminRepository } from '@infrastructure/repositories/prisma-admin.repository';
 import { PrismaUserRepository } from '@infrastructure/repositories/prisma-user.repository';
 import { PrismaNotificationService } from '@infrastructure/notification/prisma-notification.service';
+import { BcryptPasswordHasher } from '@infrastructure/auth/bcrypt-password-hasher';
+import { SmsAdapter } from '@infrastructure/sms/sms.adapter';
 import { AdminController } from '@interface/controllers/admin.controller';
 import { ExpressContractFilter } from '@interface/filters/express-contract.filter';
 import {
@@ -43,6 +48,9 @@ import {
     { provide: ADMIN_REPOSITORY, useClass: PrismaAdminRepository },
     { provide: USER_REPOSITORY, useClass: PrismaUserRepository },
     { provide: NOTIFICATION_SERVICE, useClass: PrismaNotificationService },
+    { provide: PASSWORD_HASHER, useClass: BcryptPasswordHasher },
+    { provide: SMS_SERVICE, useFactory: () => new SmsAdapter() },
+    CreateAdminUserUseCase,
     GetAdminDashboardUseCase,
     ListAdminUsersUseCase,
     GetAdminUserUseCase,

@@ -113,6 +113,7 @@ describe('CreateShopUseCase', () => {
       shopsRepo(),
       fileStorage,
       notifications,
+      { shopPlan: { findFirst: jest.fn().mockResolvedValue(null) } } as never,
     );
 
     await expect(
@@ -129,6 +130,7 @@ describe('CreateShopUseCase', () => {
       shopsRepo({ findByUserId: jest.fn().mockResolvedValue(shop) }),
       fileStorage,
       notifications,
+      { shopPlan: { findFirst: jest.fn().mockResolvedValue(null) } } as never,
     );
 
     await expect(
@@ -146,6 +148,7 @@ describe('CreateShopUseCase', () => {
       shops,
       fileStorage,
       notifications,
+      { shopPlan: { findFirst: jest.fn().mockResolvedValue(null) } } as never,
     );
 
     const result = await useCase.execute({

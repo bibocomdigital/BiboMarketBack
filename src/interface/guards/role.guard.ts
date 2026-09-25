@@ -88,7 +88,7 @@ export class RolesGuard implements CanActivate {
     const payload = await this.jwtService.verifyToken(token);
     const userRole = payload.role;
 
-    if (userRole !== Role.ADMIN) {
+    if (userRole !== Role.ADMIN && userRole !== Role.SUPER_ADMIN) {
       throw AppException.forbidden(
         'Accès interdit. Seuls les administrateurs peuvent accéder à cette ressource.',
       );

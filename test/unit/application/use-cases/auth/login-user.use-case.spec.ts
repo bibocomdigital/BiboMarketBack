@@ -51,7 +51,7 @@ describe('LoginUserUseCase', () => {
       token: 'jwt-token',
       user: { id: 4, phoneNumber: '+22177' },
     });
-    expect(result.onboarding.steps.address_info).toBe(true);
+    expect(result.onboarding?.steps.address_info).toBe(true);
   });
 
   it('refuse un mot de passe incorrect', async () => {

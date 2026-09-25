@@ -16,7 +16,7 @@ import {
   USER_REPOSITORY,
   type UserRepository,
 } from '@domain/repositories/user.repository';
-import { Role } from '@domain/types/role';
+import { isStaffRole, Role } from '@domain/types/role';
 
 @Injectable()
 export class UsersAuthGuard implements CanActivate {
@@ -50,6 +50,12 @@ export class UsersAuthGuard implements CanActivate {
       if (!user) {
         throw ExpressContractException.raw(401, {
           message: 'Utilisateur non trouvé',
+        });
+      }
+
+      if ((user as { suspended?: boolean }).suspended) {
+        throw ExpressContractException.raw(403, {
+          message: 'Ce compte est suspendu',
         });
       }
 
@@ -167,9 +173,9 @@ export class UsersAdminGuard implements CanActivate {
       });
     }
 
-    if (request.user.role !== 'ADMIN') {
+    if (!isStaffRole(request.user.role)) {
       throw ExpressContractException.raw(403, {
-        message: 'Accès réservé aux administrateurs',
+        message: 'Accès réservé à l’équipe Bibocom',
       });
     }
 

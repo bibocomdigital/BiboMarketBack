@@ -35,7 +35,7 @@ export class SendPhoneVerificationCodeUseCase {
       );
     }
 
-    if (user.role === 'ADMIN') {
+    if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN' || user.role === 'MODERATOR') {
       throw new ExpressContractException(
         403,
         'La vérification du numéro ne concerne pas les comptes administrateur',

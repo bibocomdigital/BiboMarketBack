@@ -9,6 +9,9 @@ import {
   PASSWORD_HASHER,
   type PasswordHasherPort,
 } from '@application/ports/output/password-hasher.port';
+import { isDesignatedSuperAdminPhone, Role } from '@domain/types/role';
+
+const PUBLIC_ROLES = new Set<string>([Role.CLIENT, Role.MERCHANT, Role.SUPPLIER]);
 
 export interface RegisterUserInput {
   firstName?: string;
@@ -17,6 +20,9 @@ export interface RegisterUserInput {
   password?: string;
   role?: string;
   email?: string;
+  city?: string;
+  department?: string;
+  commune?: string;
 }
 
 @Injectable()
@@ -27,7 +33,7 @@ export class RegisterUserUseCase {
   ) {}
 
   async execute(input: RegisterUserInput) {
-    const { firstName, lastName, phoneNumber, password, role, email } = input;
+    const { firstName, lastName, phoneNumber, password, role, email, city, department, commune } = input;
 
     const existingPhoneUser = await this.users.findByPhoneNumber(
       phoneNumber as string,
@@ -53,7 +59,15 @@ export class RegisterUserUseCase {
     }
 
     const hashedPassword = await this.passwordHasher.hash(password as string);
-    const userRole = role ?? 'CLIENT';
+    const designated = isDesignatedSuperAdminPhone(phoneNumber);
+    const userRole = designated ? Role.SUPER_ADMIN : (role ?? Role.CLIENT);
+    if (!designated && !PUBLIC_ROLES.has(userRole)) {
+      throw new ExpressContractException(
+        400,
+        'Rôle d’inscription invalide',
+        'INVALID_ROLE',
+      );
+    }
 
     let profileCompletion = 25;
     const onboardingStep = 'personal_info';
@@ -69,6 +83,9 @@ export class RegisterUserUseCase {
       email,
       password: hashedPassword,
       role: userRole,
+      city: city?.trim() || null,
+      department: department?.trim() || null,
+      commune: commune?.trim() || null,
       isVerified: true,
       onboardingStep,
       profileCompletion,

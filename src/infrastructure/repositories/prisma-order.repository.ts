@@ -198,7 +198,35 @@ export class PrismaOrderRepository implements OrderRepository {
   }
 
   updateStatus(orderId: number, status: string) {
-    return this.prisma.order.update({
+    return this.prisma.$transaction(async (tx) => {
+      if (status === 'CANCELED') {
+        const current = await tx.order.findUnique({
+          where: { id: orderId },
+          include: { orderItems: true },
+        });
+        if (current && current.status !== 'CANCELED') {
+          for (const item of current.orderItems) {
+            const product = await tx.product.update({
+              where: { id: item.productId },
+              data: { stock: { increment: item.quantity } },
+              select: { stock: true, userId: true },
+            });
+            await tx.stockMovement.create({
+              data: {
+                productId: item.productId,
+                userId: product.userId,
+                kind: 'ANNULATION',
+                quantity: item.quantity,
+                delta: item.quantity,
+                stockAfter: product.stock,
+                orderId,
+              },
+            });
+          }
+        }
+      }
+
+      return tx.order.update({
       where: { id: orderId },
       data: { status: status as never },
       include: {
@@ -219,6 +247,7 @@ export class PrismaOrderRepository implements OrderRepository {
           },
         },
       },
+    });
     });
   }
 

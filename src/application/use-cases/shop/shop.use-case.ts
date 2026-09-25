@@ -22,6 +22,7 @@ import {
   type NotificationServicePort,
 } from '@application/ports/output/notification.port';
 import { NODE_ENV } from '@application/config/env';
+import { PrismaService } from '@infrastructure/prisma/prisma.service';
 import { isManagedMediaUrl } from '@application/use-cases/product/product.use-case';
 
 const shopErrors = {
@@ -122,6 +123,7 @@ export class CreateShopUseCase {
     @Inject(FILE_STORAGE) private readonly fileStorage: FileStoragePort,
     @Inject(NOTIFICATION_SERVICE)
     private readonly notifications: NotificationServicePort,
+    private readonly prisma: PrismaService,
   ) {}
 
   async execute(input: {
@@ -131,6 +133,7 @@ export class CreateShopUseCase {
     phoneNumber?: string;
     address?: string;
     categorieShopId?: number | string;
+    planId?: number | string;
     filePath?: string;
   }) {
     try {
@@ -184,6 +187,16 @@ export class CreateShopUseCase {
       const categorieShopId = input.categorieShopId
         ? Number(input.categorieShopId)
         : undefined;
+      const requestedPlan = Number(input.planId);
+      const plan = Number.isFinite(requestedPlan) && requestedPlan > 0
+        ? await this.prisma.shopPlan.findFirst({ where: { id: requestedPlan, active: true } })
+        : await this.prisma.shopPlan.findFirst({ where: { active: true }, orderBy: { sortOrder: 'asc' } });
+      if (input.planId && !plan) {
+        throw new ExpressContractException(400, 'Cette formule boutique n’est pas disponible', 'PLAN_UNAVAILABLE');
+      }
+      const planEndsAt = plan
+        ? new Date(Date.now() + plan.durationDays * 24 * 60 * 60 * 1000)
+        : undefined;
 
       const newShop = await this.shops.create({
         name: input.name,
@@ -193,6 +206,7 @@ export class CreateShopUseCase {
         userId: input.userId,
         logo: logoUrl,
         ...(Number.isFinite(categorieShopId) ? { categorieShopId } : {}),
+        ...(plan ? { planId: plan.id, planEndsAt } : {}),
       });
 
       await this.notifications.create({

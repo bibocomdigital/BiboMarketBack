@@ -1,10 +1,24 @@
+import { randomInt } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
+import { NODE_ENV } from '@application/config/env';
 import { ExpressContractException } from '@domain/exceptions/express-contract.exception';
 import {
   ADMIN_REPOSITORY,
   type AdminRepository,
 } from '@domain/repositories/admin.repository';
-import { Role } from '@domain/types/role';
+import {
+  USER_REPOSITORY,
+  type UserRepository,
+} from '@domain/repositories/user.repository';
+import {
+  PASSWORD_HASHER,
+  type PasswordHasherPort,
+} from '@application/ports/output/password-hasher.port';
+import {
+  SMS_SERVICE,
+  type SmsServicePort,
+} from '@application/ports/output/sms-service.port';
+import { isDesignatedSuperAdminPhone, isSuperAdminRole, Role } from '@domain/types/role';
 
 const ADMIN_ROLES = Object.values(Role);
 
@@ -90,6 +104,7 @@ export class UpdateAdminUserUseCase {
   async execute(
     id: number,
     input: { role?: string; isVerified?: boolean },
+    actorRole?: string,
   ) {
     if (!Number.isFinite(id)) {
       throw ExpressContractException.raw(400, { message: 'ID invalide' });
@@ -107,6 +122,16 @@ export class UpdateAdminUserUseCase {
         throw ExpressContractException.raw(400, {
           message: 'Rôle invalide',
           allowed: ADMIN_ROLES,
+        });
+      }
+      const touchesStaff =
+        input.role === Role.SUPER_ADMIN ||
+        input.role === Role.MODERATOR ||
+        existing.role === Role.SUPER_ADMIN;
+      if (touchesStaff && !isSuperAdminRole(actorRole)) {
+        throw ExpressContractException.raw(403, {
+          message:
+            'Seul le super administrateur peut attribuer ou modifier ce rôle',
         });
       }
       data.role = input.role;
@@ -131,7 +156,7 @@ export class DeleteAdminUserUseCase {
     @Inject(ADMIN_REPOSITORY) private readonly admin: AdminRepository,
   ) {}
 
-  async execute(id: number, actorId: number) {
+  async execute(id: number, actorId: number, actorRole?: string) {
     if (!Number.isFinite(id)) {
       throw ExpressContractException.raw(400, { message: 'ID invalide' });
     }
@@ -146,6 +171,11 @@ export class DeleteAdminUserUseCase {
         message: 'Utilisateur non trouvé',
       });
     }
+    if (existing.role === Role.SUPER_ADMIN && !isSuperAdminRole(actorRole)) {
+      throw ExpressContractException.raw(403, {
+        message: 'Seul le super administrateur peut supprimer ce compte',
+      });
+    }
     const deps = await this.admin.countUserDependencies(id);
     if (deps.shop > 0 || deps.orders > 0 || deps.products > 0) {
       throw ExpressContractException.raw(409, {
@@ -156,6 +186,126 @@ export class DeleteAdminUserUseCase {
     }
     await this.admin.deleteUser(id);
     return { message: 'Utilisateur supprimé', userId: id };
+  }
+}
+
+const CREATABLE_ROLES = new Set<Role>([
+  Role.CLIENT,
+  Role.MERCHANT,
+  Role.SUPPLIER,
+  Role.ADMIN,
+  Role.MODERATOR,
+]);
+
+const ROLE_SMS_LABEL: Record<string, string> = {
+  CLIENT: 'client',
+  MERCHANT: 'commerçant',
+  SUPPLIER: 'fournisseur',
+  ADMIN: 'administrateur',
+  MODERATOR: 'modérateur',
+  SUPER_ADMIN: 'super administrateur',
+};
+
+function temporaryPassword(): string {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let value = '';
+  for (let index = 0; index < 10; index += 1) {
+    value += alphabet[randomInt(alphabet.length)];
+  }
+  return value;
+}
+
+@Injectable()
+export class CreateAdminUserUseCase {
+  constructor(
+    @Inject(USER_REPOSITORY) private readonly users: UserRepository,
+    @Inject(PASSWORD_HASHER) private readonly passwordHasher: PasswordHasherPort,
+    @Inject(SMS_SERVICE) private readonly sms: SmsServicePort,
+  ) {}
+
+  async execute(input: {
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+    email?: string;
+    role?: string;
+  }) {
+    const firstName = input.firstName?.trim() ?? '';
+    const lastName = input.lastName?.trim() ?? '';
+    const phoneNumber = (input.phoneNumber ?? '').replace(/\s/g, '');
+    const email = input.email?.trim() || null;
+    if (firstName.length < 2 || lastName.length < 2) {
+      throw ExpressContractException.raw(400, {
+        message: 'Le prénom et le nom sont requis',
+      });
+    }
+    if (!/^\+?[0-9]{9,15}$/.test(phoneNumber)) {
+      throw ExpressContractException.raw(400, {
+        message: 'Numéro de téléphone invalide',
+      });
+    }
+    const storedPhone = phoneNumber.startsWith('+') ? phoneNumber : `+${phoneNumber}`;
+    const requested = (input.role ?? Role.CLIENT) as Role;
+    if (!CREATABLE_ROLES.has(requested) && !isDesignatedSuperAdminPhone(storedPhone)) {
+      throw ExpressContractException.raw(400, {
+        message: 'Rôle invalide',
+      });
+    }
+    const role = isDesignatedSuperAdminPhone(storedPhone) ? Role.SUPER_ADMIN : requested;
+    if (await this.users.findByPhoneNumber(storedPhone)) {
+      throw ExpressContractException.raw(409, {
+        message: 'Ce numéro est déjà utilisé',
+      });
+    }
+    if (email && (await this.users.findByEmail(email))) {
+      throw ExpressContractException.raw(409, {
+        message: 'Cet email est déjà utilisé',
+      });
+    }
+
+    const password = temporaryPassword();
+    const created = await this.users.create({
+      firstName,
+      lastName,
+      phoneNumber: storedPhone,
+      email,
+      password: await this.passwordHasher.hash(password),
+      role,
+      isVerified: true,
+      phoneVerified: true,
+      isProfileCompleted: true,
+      profileCompletion: 100,
+      onboardingStep: 'completed',
+      country: 'Sénégal',
+    });
+
+    const message =
+      `Bibocom Market : votre compte ${ROLE_SMS_LABEL[role] ?? role} est créé. ` +
+      `Connexion avec ${storedPhone}. Mot de passe : ${password}`;
+    try {
+      await this.sms.sendRaw(storedPhone, message);
+    } catch (error) {
+      if (NODE_ENV === 'production') {
+        await this.users.delete(created.id);
+        throw ExpressContractException.raw(502, {
+          message: "Le compte n'a pas été créé : l'envoi du SMS a échoué",
+          error: errorMessage(error),
+        });
+      }
+      return {
+        message: "Compte créé. Le SMS n'a pas abouti, voici le mot de passe de test.",
+        user: { id: created.id, phoneNumber: storedPhone, role, firstName, lastName },
+        smsSent: false,
+        temporaryPassword: password,
+      };
+    }
+
+    return {
+      message: `Identifiants envoyés par SMS au ${storedPhone}`,
+      user: { id: created.id, phoneNumber: storedPhone, role, firstName, lastName },
+      smsSent: true,
+      ...(NODE_ENV === 'production' ? {} : { temporaryPassword: password }),
+    };
   }
 }
 

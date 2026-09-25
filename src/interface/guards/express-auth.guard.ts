@@ -54,7 +54,7 @@ export class ExpressAdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
 
-    if (request.user?.role !== 'ADMIN') {
+    if (request.user?.role !== 'ADMIN' && request.user?.role !== 'SUPER_ADMIN') {
       throw new ExpressContractException(
         403,
         'Accès réservé aux administrateurs',

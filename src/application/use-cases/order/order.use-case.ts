@@ -348,7 +348,7 @@ export class DeleteOrderUseCase {
         isAuthorized = order.orderItems.some(
           (item: any) => item.product.shop.userId === userId,
         );
-      } else if (userRole === 'ADMIN') {
+      } else if (userRole === 'ADMIN' || userRole === 'SUPER_ADMIN') {
         isAuthorized = true;
       }
 

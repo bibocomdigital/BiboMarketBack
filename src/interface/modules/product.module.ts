@@ -22,6 +22,7 @@ import {
   UpdateProductUseCase,
   UpdateProductWithImagesUseCase,
 } from '@application/use-cases/product/product.use-case';
+import { StockMovementUseCase } from '@application/use-cases/product/stock-movement.use-case';
 import { PrismaUserRepository } from '@infrastructure/repositories/prisma-user.repository';
 import { PrismaShopRepository } from '@infrastructure/repositories/prisma-shop.repository';
 import { PrismaProductRepository } from '@infrastructure/repositories/prisma-product.repository';
@@ -60,6 +61,7 @@ import {
     GetProductCategoriesUseCase,
     GetProductStatsUseCase,
     GetRelatedProductsUseCase,
+    StockMovementUseCase,
     UsersAuthGuard,
     OptionalUsersAuthGuard,
     UsersMerchantGuard,

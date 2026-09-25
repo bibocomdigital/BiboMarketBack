@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { ExpressContractException } from '@domain/exceptions/express-contract.exception';
 import type { Cart } from '@domain/entities/cart.entity';
 import type {
   CartOrderInput,
@@ -11,6 +12,7 @@ const previewProduct = {
     id: true,
     name: true,
     price: true,
+    promoPrice: true,
     stock: true,
     images: { take: 1 },
   },
@@ -98,6 +100,7 @@ export class PrismaCartRepository implements CartRepository {
                 id: true,
                 name: true,
                 price: true,
+                promoPrice: true,
                 stock: true,
                 images: {
                   select: { imageUrl: true },
@@ -153,21 +156,68 @@ export class PrismaCartRepository implements CartRepository {
   }
 
   createOrder(data: CartOrderInput) {
-    return this.prisma.order.create({
-      data: {
-        clientId: data.clientId,
-        totalAmount: data.totalAmount,
-        status: 'PENDING',
-        paymentMethod: 'CASH_ON_DELIVERY',
-        orderItems: {
-          create: data.items.map((item) => ({
+    return this.prisma.$transaction(async (tx) => {
+      const snapshots: Array<{
+        productId: number;
+        userId: number;
+        quantity: number;
+        stockAfter: number;
+      }> = [];
+      for (const item of data.items) {
+        const reserved = await tx.product.updateMany({
+          where: { id: item.productId, stock: { gte: item.quantity } },
+          data: { stock: { decrement: item.quantity } },
+        });
+        if (reserved.count !== 1) {
+          throw ExpressContractException.raw(400, {
+            message: 'Stock insuffisant pour finaliser la commande',
             productId: item.productId,
+          });
+        }
+        const product = await tx.product.findUnique({
+          where: { id: item.productId },
+          select: { stock: true, userId: true },
+        });
+        if (product) {
+          snapshots.push({
+            productId: item.productId,
+            userId: product.userId,
             quantity: item.quantity,
-            price: item.price,
-          })),
+            stockAfter: product.stock,
+          });
+        }
+      }
+
+      const order = await tx.order.create({
+        data: {
+          clientId: data.clientId,
+          totalAmount: data.totalAmount,
+          status: 'PENDING',
+          paymentMethod: 'CASH_ON_DELIVERY',
+          orderItems: {
+            create: data.items.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+          },
         },
-      },
-      include: { orderItems: true },
+        include: { orderItems: true },
+      });
+      for (const snap of snapshots) {
+        await tx.stockMovement.create({
+          data: {
+            productId: snap.productId,
+            userId: snap.userId,
+            kind: 'COMMANDE',
+            quantity: snap.quantity,
+            delta: -snap.quantity,
+            stockAfter: snap.stockAfter,
+            orderId: order.id,
+          },
+        });
+      }
+      return order;
     });
   }
 }

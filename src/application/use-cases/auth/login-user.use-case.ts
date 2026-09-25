@@ -17,7 +17,7 @@ import {
   JWT_SERVICE_TOKEN,
   type JwtServicePort,
 } from '@application/ports/output/jwt-service.port';
-import { Role } from '@domain/types/role';
+import { isDesignatedSuperAdminPhone, Role } from '@domain/types/role';
 
 @Injectable()
 export class LoginUserUseCase {
@@ -43,7 +43,7 @@ export class LoginUserUseCase {
     if (!user) {
       throw new ExpressContractException(
         401,
-        phoneNumber ? 'Numéro incorrect' : 'Email incorrecte',
+        phoneNumber ? "Aucun compte n'utilise ce numéro" : "Aucun compte n'utilise cet email",
         'INVALID_CREDENTIALS',
       );
     }
@@ -60,18 +60,44 @@ export class LoginUserUseCase {
       );
     }
 
+    if ((user as { suspended?: boolean }).suspended) {
+      throw new ExpressContractException(
+        403,
+        'Ce compte est suspendu',
+        'ACCOUNT_SUSPENDED',
+      );
+    }
+
+    const role = isDesignatedSuperAdminPhone(user.phoneNumber)
+      ? Role.SUPER_ADMIN
+      : user.role;
+
     await this.users.update(user.id, {
       lastLogin: new Date(),
       lastActive: new Date(),
       isOnline: true,
+      ...(role !== user.role ? { role } : {}),
     });
+
+    if ((user as { twoFactorEnabled?: boolean }).twoFactorEnabled) {
+      const challenge = await this.jwtService.signPayload(
+        { id: user.id, userId: user.id, purpose: '2fa', role },
+        '5m',
+      );
+      return {
+        status: 'success',
+        message: 'Code de double authentification requis',
+        requiresTwoFactor: true,
+        challenge,
+      };
+    }
 
     const tokens = await this.jwtService.generateToken({
       id: user.id,
       userId: user.id,
       phoneNumber: user.phoneNumber,
       email: user.email,
-      role: user.role as Role,
+      role: role as Role,
     });
 
     const profileCompletion = calculateProfileCompletion(user);
@@ -90,7 +116,7 @@ export class LoginUserUseCase {
         firstName: user.firstName,
         lastName: user.lastName,
         photo: user.photo,
-        role: user.role,
+        role,
         country: user.country,
         city: user.city,
         phoneVerified: user.phoneVerified,

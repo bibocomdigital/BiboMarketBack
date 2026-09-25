@@ -125,6 +125,7 @@ describe('CreateProductUseCase', () => {
       productsRepo(),
       fileStorage,
       notifications,
+      { shop: { findUnique: jest.fn().mockResolvedValue(null) }, product: { count: jest.fn() } } as never,
     );
 
     await expect(useCase.execute(1, { name: 'Riz' })).rejects.toMatchObject({
@@ -140,6 +141,7 @@ describe('CreateProductUseCase', () => {
       productsRepo(),
       fileStorage,
       notifications,
+      { shop: { findUnique: jest.fn().mockResolvedValue(null) }, product: { count: jest.fn() } } as never,
     );
 
     await expect(
@@ -161,6 +163,7 @@ describe('CreateProductUseCase', () => {
       products,
       fileStorage,
       notifications,
+      { shop: { findUnique: jest.fn().mockResolvedValue(null) }, product: { count: jest.fn() } } as never,
     );
 
     const result = await useCase.execute(1, {
@@ -304,7 +307,7 @@ describe('UpdateProductStatusUseCase', () => {
 
 describe('UpdateProductStockUseCase', () => {
   it('refuse un stock invalide', async () => {
-    const useCase = new UpdateProductStockUseCase(productsRepo());
+    const useCase = new UpdateProductStockUseCase(productsRepo(), {} as never);
 
     await expect(useCase.execute(20, 1, -1)).rejects.toMatchObject({
       statusCode: 400,

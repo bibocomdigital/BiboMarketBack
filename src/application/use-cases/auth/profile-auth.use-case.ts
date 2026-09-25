@@ -13,7 +13,7 @@ import {
   type FileStoragePort,
 } from '@application/ports/output/file-storage.port';
 import { NODE_ENV } from '@application/config/env';
-import { Role } from '@domain/types/role';
+import { isDesignatedSuperAdminPhone, Role } from '@domain/types/role';
 
 @Injectable()
 export class GetUserProfileUseCase {
@@ -177,7 +177,7 @@ export class GetAllUsersUseCase {
   ) {}
 
   async execute(role?: string) {
-    if (role !== 'ADMIN') {
+    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
       throw new ExpressContractException(
         403,
         'Accès réservé aux administrateurs',
@@ -217,7 +217,7 @@ export class UpdateUserRoleUseCase {
   ) {}
 
   async execute(adminRole: string | undefined, userId: number, role: string) {
-    if (adminRole !== 'ADMIN') {
+    if (adminRole !== 'ADMIN' && adminRole !== 'SUPER_ADMIN') {
       throw new ExpressContractException(
         403,
         'Accès réservé aux administrateurs',
@@ -343,6 +343,14 @@ export class UpdateUserProfileUseCase {
     if (lastName !== undefined && lastName !== '')
       dataToUpdate.lastName = lastName;
     if (phoneNumber !== undefined && phoneNumber !== '') {
+      const taken = await this.users.findByPhoneNumberExcludingId(phoneNumber, userId);
+      if (taken) {
+        throw new ExpressContractException(
+          409,
+          'Ce numéro de téléphone est déjà utilisé par un autre compte',
+          'PHONE_EXISTS',
+        );
+      }
       dataToUpdate.phoneNumber = phoneNumber;
     }
     if (country !== undefined && country !== '') dataToUpdate.country = country;
@@ -358,6 +366,13 @@ export class UpdateUserProfileUseCase {
         role === Role.SUPPLIER)
     ) {
       dataToUpdate.role = role;
+    }
+    const nextPhone =
+      typeof dataToUpdate.phoneNumber === 'string'
+        ? dataToUpdate.phoneNumber
+        : currentUser.phoneNumber;
+    if (isDesignatedSuperAdminPhone(nextPhone)) {
+      dataToUpdate.role = Role.SUPER_ADMIN;
     }
     if (photoUrl) dataToUpdate.photo = photoUrl;
     if (firstName || lastName || phoneNumber) {
@@ -384,6 +399,18 @@ export class UpdateUserProfileUseCase {
         },
       };
     } catch (error) {
+      if (
+        error &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === 'P2002'
+      ) {
+        throw new ExpressContractException(
+          409,
+          'Ce numéro de téléphone est déjà utilisé par un autre compte',
+          'PHONE_EXISTS',
+        );
+      }
       if (
         error &&
         typeof error === 'object' &&

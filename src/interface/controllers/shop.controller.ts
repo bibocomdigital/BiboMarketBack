@@ -112,6 +112,7 @@ export class ShopController {
       phoneNumber?: string;
       address?: string;
       categorieShopId?: string | number;
+      planId?: string | number;
     },
     @UploadedFile() file?: { path: string },
   ) {
@@ -122,6 +123,7 @@ export class ShopController {
       phoneNumber: body.phoneNumber,
       address: body.address,
       categorieShopId: body.categorieShopId,
+      planId: body.planId,
       filePath: file?.path,
     });
   }

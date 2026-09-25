@@ -5,6 +5,7 @@ import {
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Req,
   UseFilters,
@@ -14,6 +15,7 @@ import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { GetAdminDashboardUseCase } from '@application/use-cases/admin/admin-dashboard.use-case';
 import {
+  CreateAdminUserUseCase,
   DeleteAdminUserUseCase,
   GetAdminUserUseCase,
   ListAdminUsersUseCase,
@@ -43,6 +45,7 @@ import {
   UsersAuthGuard,
 } from '@interface/guards/users-auth.guard';
 import { currentUserId } from '@interface/guards/express-auth.guard';
+import { assertOperator, assertSuperAdmin } from '@interface/guards/staff-access';
 
 type AdminQuery = Record<string, string | undefined>;
 
@@ -54,6 +57,7 @@ export class AdminController {
   constructor(
     private readonly getDashboard: GetAdminDashboardUseCase,
     private readonly listUsers: ListAdminUsersUseCase,
+    private readonly createUserAccount: CreateAdminUserUseCase,
     private readonly getUser: GetAdminUserUseCase,
     private readonly updateUser: UpdateAdminUserUseCase,
     private readonly deleteUser: DeleteAdminUserUseCase,
@@ -73,33 +77,60 @@ export class AdminController {
 
   @Get('dashboard')
   dashboard(
+    @Req() request: Request,
     @Query('months') months?: string,
     @Query('lowStockThreshold') lowStockThreshold?: string,
   ) {
+    assertOperator(request.user?.role);
     return this.getDashboard.execute(months, lowStockThreshold);
   }
 
   @Get('users')
-  users(@Query() query: AdminQuery) {
+  users(@Req() request: Request, @Query() query: AdminQuery) {
+    assertOperator(request.user?.role);
     return this.listUsers.execute(query);
   }
 
+  @Post('users')
+  addUser(
+    @Req() request: Request,
+    @Body()
+    body: {
+      firstName?: string;
+      lastName?: string;
+      phoneNumber?: string;
+      email?: string;
+      role?: string;
+    },
+  ) {
+    assertSuperAdmin(request.user?.role);
+    return this.createUserAccount.execute(body);
+  }
+
   @Get('users/:id')
-  user(@Param('id') id: string) {
+  user(@Req() request: Request, @Param('id') id: string) {
+    assertOperator(request.user?.role);
     return this.getUser.execute(parseInt(id, 10));
   }
 
   @Patch('users/:id')
   patchUser(
+    @Req() request: Request,
     @Param('id') id: string,
     @Body() body: { role?: string; isVerified?: boolean },
   ) {
-    return this.updateUser.execute(parseInt(id, 10), body);
+    assertOperator(request.user?.role);
+    return this.updateUser.execute(parseInt(id, 10), body, request.user?.role);
   }
 
   @Delete('users/:id')
   removeUser(@Req() request: Request, @Param('id') id: string) {
-    return this.deleteUser.execute(parseInt(id, 10), currentUserId(request));
+    assertOperator(request.user?.role);
+    return this.deleteUser.execute(
+      parseInt(id, 10),
+      currentUserId(request),
+      request.user?.role,
+    );
   }
 
   @Get('shops')
@@ -114,14 +145,19 @@ export class AdminController {
 
   @Patch('shops/:id')
   patchShop(
+    @Req() request: Request,
     @Param('id') id: string,
     @Body() body: { status?: boolean | string; verifiedBadge?: boolean | string },
   ) {
+    if (body.verifiedBadge !== undefined) {
+      assertOperator(request.user?.role);
+    }
     return this.updateShop.execute(parseInt(id, 10), body);
   }
 
   @Delete('shops/:id')
-  removeShop(@Param('id') id: string) {
+  removeShop(@Req() request: Request, @Param('id') id: string) {
+    assertOperator(request.user?.role);
     return this.deleteShop.execute(parseInt(id, 10));
   }
 
@@ -149,25 +185,30 @@ export class AdminController {
   }
 
   @Get('orders')
-  orders(@Query() query: AdminQuery) {
+  orders(@Req() request: Request, @Query() query: AdminQuery) {
+    assertOperator(request.user?.role);
     return this.listOrders.execute(query);
   }
 
   @Get('orders/:id')
-  order(@Param('id') id: string) {
+  order(@Req() request: Request, @Param('id') id: string) {
+    assertOperator(request.user?.role);
     return this.getOrder.execute(parseInt(id, 10));
   }
 
   @Patch('orders/:id/status')
   patchOrderStatus(
+    @Req() request: Request,
     @Param('id') id: string,
     @Body() body: { status?: string },
   ) {
+    assertOperator(request.user?.role);
     return this.updateOrderStatus.execute(parseInt(id, 10), body.status ?? '');
   }
 
   @Get('feedbacks')
-  feedbacks(@Query() query: AdminQuery) {
+  feedbacks(@Req() request: Request, @Query() query: AdminQuery) {
+    assertOperator(request.user?.role);
     return this.listFeedbacks.execute(query);
   }
 }

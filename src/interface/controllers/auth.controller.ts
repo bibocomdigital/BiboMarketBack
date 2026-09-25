@@ -111,6 +111,9 @@ export class AuthController {
       password?: string;
       role?: string;
       email?: string;
+      city?: string;
+      department?: string;
+      commune?: string;
     },
   ) {
     return this.registerUser.execute(body);
